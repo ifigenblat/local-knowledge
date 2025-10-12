@@ -98,6 +98,9 @@ Thumbs.db
 server/uploads/*
 !server/uploads/.gitkeep
 
+# Exports folder (sample content files)
+Exports/
+
 # MongoDB data
 data/
 

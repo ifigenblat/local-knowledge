@@ -63,8 +63,8 @@ docker run -d --name mongodb -p 27017:27017 mongo:latest
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/mindnode-card-app.git
-   cd mindnode-card-app
+   git clone https://github.com/tataravi/card-creator-app.git
+   cd card-creator-app
    ```
 
 2. **Install dependencies**
@@ -84,7 +84,7 @@ docker run -d --name mongodb -p 27017:27017 mongo:latest
    Create a `.env` file in the `server` directory:
    ```env
    PORT=5001
-   MONGODB_URI=mongodb://localhost:27017/card-app
+   MONGODB_URI=mongodb://localhost:27017/card-creator-app
    JWT_SECRET=your-secret-key-here-make-this-secure-in-production
    NODE_ENV=development
    CLIENT_URL=http://localhost:3000
@@ -115,7 +115,7 @@ npm start
 ## Project Structure
 
 ```
-card-creation-app/
+card-creator-app/
 ├── server/                 # Backend Node.js application
 │   ├── models/            # MongoDB schemas
 │   ├── routes/            # API routes
@@ -256,8 +256,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 If you have any questions or need help, please:
-- Open an [issue](https://github.com/yourusername/mindnode-card-app/issues)
-- Check our [documentation](https://github.com/yourusername/mindnode-card-app/wiki)
+- Open an [issue](https://github.com/yourusername/card-creator-app/issues)
+- Check our [documentation](https://github.com/yourusername/card-creator-app/wiki)
 - Contact the maintainers
 
 ---

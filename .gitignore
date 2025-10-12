@@ -123,3 +123,6 @@ coverage/
 # MCP Server (if you add it later)
 mcp-server/node_modules/
 mcp-server/.env
+
+# MindNode files (personal content)
+*.mindnode

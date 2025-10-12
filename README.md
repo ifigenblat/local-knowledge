@@ -1,4 +1,4 @@
-# MindNode - Card Creation App
+# Card Creation App
 
 A full-stack React and Node.js application that automatically creates interactive learning cards from uploaded content. Perfect for leadership, management, and educational content.
 

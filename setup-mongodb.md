@@ -1,4 +1,4 @@
-# MongoDB Atlas Setup Instructions
+# MongoDB Atlas Setup Instructionss
 
 ## Step 1: Create MongoDB Atlas Account
 1. Go to https://www.mongodb.com/atlas

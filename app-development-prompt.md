@@ -1,4 +1,4 @@
-# React & Node.js Card Creation App Development Prompt
+# React & Node.js Card Creation App Development Prompts
 
 ## Project Overview
 Create a full-stack web application that allows users to upload various content formats (text, documents, images, etc.) and automatically generates interactive cards for learning and reference purposes. The app should be particularly optimized for leadership, management, and personal development content.

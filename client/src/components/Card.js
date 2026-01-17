@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import ImageZoomViewer from './ImageZoomViewer';
 
-const Card = ({ card, onEdit, onDelete, onReview, onRate, className = '' }) => {
+const Card = ({ card, onEdit, onDelete, onReview, onRate, className = '', disableDefaultModal = false, onCardClick }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [rating, setRating] = useState(card.metadata?.rating || 0);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -82,7 +82,14 @@ const Card = ({ card, onEdit, onDelete, onReview, onRate, className = '' }) => {
         {/* Card Container */}
         <div className="relative w-full h-64">
           <div className="w-full h-full bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden cursor-pointer"
-               onClick={() => setShowFullModal(true)}>
+               onClick={(e) => {
+                 if (disableDefaultModal && onCardClick) {
+                   e.stopPropagation();
+                   onCardClick(card);
+                 } else if (!disableDefaultModal) {
+                   setShowFullModal(true);
+                 }
+               }}>
             {/* Card Header */}
             <div className={`h-16 ${cardTypeColors[card.type]} flex items-center justify-between px-4`}>
               <div className="flex items-center space-x-2">
@@ -154,7 +161,11 @@ const Card = ({ card, onEdit, onDelete, onReview, onRate, className = '' }) => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setShowFullModal(true);
+                    if (disableDefaultModal && onCardClick) {
+                      onCardClick(card);
+                    } else if (!disableDefaultModal) {
+                      setShowFullModal(true);
+                    }
                   }}
                   className="p-1.5 sm:p-1 bg-white dark:bg-gray-700 rounded shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 active:bg-gray-100 transition-colors touch-manipulation"
                   aria-label="View card"

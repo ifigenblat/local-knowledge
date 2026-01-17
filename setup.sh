@@ -85,8 +85,28 @@ setup_mongodb() {
         print_status "MongoDB container exists, starting it..."
         docker start mongodb
     else
-        print_status "Creating new MongoDB container..."
-        docker run -d --name mongodb -p 27017:27017 mongo:latest
+        print_status "Creating new MongoDB container with authentication..."
+        docker run -d --name mongodb -p 27017:27017 \
+            -e MONGO_INITDB_ROOT_USERNAME=localknowledge \
+            -e MONGO_INITDB_ROOT_PASSWORD=myknowledge \
+            -e MONGO_INITDB_DATABASE=local-knowledge \
+            mongo:latest --auth
+        
+        # Wait for MongoDB to initialize
+        sleep 5
+        
+        # Create database user
+        print_status "Creating database user..."
+        docker exec mongodb mongosh local-knowledge -u localknowledge -p myknowledge --authenticationDatabase admin --eval "
+        db.createUser({
+          user: 'localknowledge',
+          pwd: 'myknowledge',
+          roles: [
+            { role: 'readWrite', db: 'local-knowledge' },
+            { role: 'dbAdmin', db: 'local-knowledge' }
+          ]
+        })
+        " > /dev/null 2>&1
     fi
     
     # Wait for MongoDB to be ready
@@ -110,7 +130,7 @@ create_env_files() {
     if [ ! -f "server/.env" ]; then
         cat > server/.env << EOF
 PORT=5001
-MONGODB_URI=mongodb://localhost:27017/local-knowledge
+MONGODB_URI=mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge?authSource=admin
 JWT_SECRET=your-secret-key-here-make-this-secure-in-production
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000

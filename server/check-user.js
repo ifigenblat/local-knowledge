@@ -3,7 +3,9 @@ const User = require('./models/User');
 
 async function checkUser() {
   try {
-    await mongoose.connect('mongodb://localhost:27017/local-knowledge');
+    require('dotenv').config();
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge?authSource=admin';
+    await mongoose.connect(mongoUri);
     console.log('Connected to MongoDB');
     
     const user = await User.findOne({ email: 'test@example.com' });

@@ -41,7 +41,7 @@ if [ ! -f "server/.env" ]; then
     print_status "Creating server/.env file..."
     cat > server/.env << EOF
 PORT=5001
-MONGODB_URI=mongodb://localhost:27017/local-knowledge
+MONGODB_URI=mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge?authSource=admin
 JWT_SECRET=$(openssl rand -base64 32)
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000
@@ -88,9 +88,24 @@ if command -v docker &> /dev/null; then
             fi
         else
             print_warning "MongoDB container does not exist"
-            print_status "Creating MongoDB container..."
-            docker run -d --name mongodb -p 27017:27017 mongo:latest
+            print_status "Creating MongoDB container with authentication..."
+            docker run -d --name mongodb -p 27017:27017 \
+                -e MONGO_INITDB_ROOT_USERNAME=localknowledge \
+                -e MONGO_INITDB_ROOT_PASSWORD=myknowledge \
+                -e MONGO_INITDB_DATABASE=local-knowledge \
+                mongo:latest --auth
             sleep 5
+            # Create database user
+            docker exec mongodb mongosh local-knowledge -u localknowledge -p myknowledge --authenticationDatabase admin --eval "
+            db.createUser({
+              user: 'localknowledge',
+              pwd: 'myknowledge',
+              roles: [
+                { role: 'readWrite', db: 'local-knowledge' },
+                { role: 'dbAdmin', db: 'local-knowledge' }
+              ]
+            })
+            " > /dev/null 2>&1
             if docker ps --format "{{.Names}}" | grep -q "^mongodb$"; then
                 print_success "MongoDB container created and started"
             else

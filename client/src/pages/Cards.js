@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { fetchCards, deleteCardAsync, updateCardAsync } from '../store/slices/cardSlice';
 import { fetchCollections, addCardToCollection, removeCardFromCollection, fetchCollection } from '../store/slices/collectionSlice';
 import { toast } from 'react-hot-toast';
@@ -21,7 +21,12 @@ import {
   File,
   ChevronDown,
   ChevronUp,
-  ExternalLink
+  ExternalLink,
+  BookOpen,
+  Target,
+  Quote,
+  CheckSquare,
+  Network
 } from 'lucide-react';
 
 // Component to highlight snippet in source file content
@@ -523,6 +528,18 @@ const Cards = () => {
     return icons[type] || <FileText className="h-4 w-4" />;
   };
 
+  const getTypeIconForHeader = (type) => {
+    const icons = {
+      concept: BookOpen,
+      action: Target,
+      quote: Quote,
+      checklist: CheckSquare,
+      mindmap: Network
+    };
+    const IconComponent = icons[type] || BookOpen;
+    return <IconComponent className="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0" />;
+  };
+
   const getTypeColor = (type) => {
     const colors = {
       concept: 'bg-blue-100 text-blue-800',
@@ -532,6 +549,17 @@ const Cards = () => {
       mindmap: 'bg-indigo-100 text-indigo-800'
     };
     return colors[type] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getTypeColorForHeader = (type) => {
+    const colors = {
+      concept: 'bg-blue-500',
+      action: 'bg-green-500',
+      quote: 'bg-purple-500',
+      checklist: 'bg-orange-500',
+      mindmap: 'bg-indigo-500'
+    };
+    return colors[type] || 'bg-gray-500';
   };
 
   if (loading) {
@@ -653,131 +681,143 @@ const Cards = () => {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredCards.map((card) => (
-                  <tr key={card._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${selectedCardIds.has(card._id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
-                    <td className="px-4 sm:px-6 py-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedCardIds.has(card._id)}
-                        onChange={() => handleSelectCard(card._id)}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </td>
-                    <td className="px-4 sm:px-6 py-4">
-                      <div className="flex items-start">
-                        <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10">
-                          <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-lg flex items-center justify-center ${getTypeColor(card.type)}`}>
-                            {getTypeIcon(card.type)}
+                {filteredCards.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="px-4 sm:px-6 py-12 text-center">
+                      <div className="text-gray-500 dark:text-gray-400">
+                        {cards.length === 0 ? (
+                          <div>
+                            <p className="mb-4">No cards found. Upload some content to get started!</p>
+                            <Link
+                              to="/upload"
+                              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                              Upload Content
+                            </Link>
                           </div>
-                        </div>
-                        <div className="ml-2 sm:ml-4 min-w-0 flex-1">
-                          <div className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white break-words">
-                            {card.title}
-                          </div>
-                          <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 break-words line-clamp-2 sm:line-clamp-2 mt-1">
-                            {card.content}
-                          </div>
-                          <div className="mt-2 sm:hidden flex items-center justify-between flex-wrap gap-2">
-                            <div className="flex items-center space-x-2 text-xs">
-                              <span className={`inline-flex px-2 py-0.5 font-semibold rounded-full ${getTypeColor(card.type)}`}>
-                                {card.type}
-                              </span>
-                              <span className="text-gray-500 dark:text-gray-400">{card.category}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <button
-                                onClick={() => handleViewCard(card)}
-                                className="p-1.5 text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 touch-manipulation"
-                                title="View Details"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleEditCard(card)}
-                                className="p-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 touch-manipulation"
-                                title="Edit"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleAddToCollection(card)}
-                                className="p-1.5 text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300 touch-manipulation"
-                                title="Add to Collection"
-                              >
-                                <FolderPlus className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteCard(card._id)}
-                                className="p-1.5 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 touch-manipulation"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTypeColor(card.type)}`}>
-                        {card.type}
-                      </span>
-                    </td>
-                    <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {card.category}
-                    </td>
-                    <td className="hidden lg:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {card.source}
-                    </td>
-                    <td className="hidden sm:table-cell px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-1 sm:space-x-2">
-                        <button
-                          onClick={() => handleViewCard(card)}
-                          className="p-1.5 sm:p-0 text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 touch-manipulation"
-                          title="View Details"
-                        >
-                          <Eye className="h-4 w-4 sm:h-4 sm:w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleEditCard(card)}
-                          className="p-1.5 sm:p-0 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 touch-manipulation"
-                          title="Edit"
-                        >
-                          <Edit className="h-4 w-4 sm:h-4 sm:w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleAddToCollection(card)}
-                          className="p-1.5 sm:p-0 text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300 touch-manipulation"
-                          title="Add to Collection"
-                        >
-                          <FolderPlus className="h-4 w-4 sm:h-4 sm:w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCard(card._id)}
-                          className="p-1.5 sm:p-0 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 touch-manipulation"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4 sm:h-4 sm:w-4" />
-                        </button>
+                        ) : (
+                          <p>No cards match your current search and filter criteria.</p>
+                        )}
                       </div>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredCards.map((card) => (
+                    <tr key={card._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${selectedCardIds.has(card._id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+                      <td className="px-4 sm:px-6 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedCardIds.has(card._id)}
+                          onChange={() => handleSelectCard(card._id)}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </td>
+                      <td className="px-4 sm:px-6 py-4">
+                        <div className="flex items-start">
+                          <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10">
+                            <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-lg flex items-center justify-center ${getTypeColor(card.type)}`}>
+                              {getTypeIcon(card.type)}
+                            </div>
+                          </div>
+                          <div className="ml-2 sm:ml-4 min-w-0 flex-1">
+                            <div className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white break-words">
+                              {card.title}
+                            </div>
+                            <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 break-words line-clamp-2 sm:line-clamp-2 mt-1">
+                              {card.content}
+                            </div>
+                            <div className="mt-2 sm:hidden flex items-center justify-between flex-wrap gap-2">
+                              <div className="flex items-center space-x-2 text-xs">
+                                <span className={`inline-flex px-2 py-0.5 font-semibold rounded-full ${getTypeColor(card.type)}`}>
+                                  {card.type}
+                                </span>
+                                <span className="text-gray-500 dark:text-gray-400">{card.category}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <button
+                                  onClick={() => handleViewCard(card)}
+                                  className="p-1.5 text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 touch-manipulation"
+                                  title="View Details"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleEditCard(card)}
+                                  className="p-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 touch-manipulation"
+                                  title="Edit"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleAddToCollection(card)}
+                                  className="p-1.5 text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300 touch-manipulation"
+                                  title="Add to Collection"
+                                >
+                                  <FolderPlus className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteCard(card._id)}
+                                  className="p-1.5 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 touch-manipulation"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTypeColor(card.type)}`}>
+                          {card.type}
+                        </span>
+                      </td>
+                      <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {card.category}
+                      </td>
+                      <td className="hidden lg:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {card.source}
+                      </td>
+                      <td className="hidden sm:table-cell px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-1 sm:space-x-2">
+                          <button
+                            onClick={() => handleViewCard(card)}
+                            className="p-1.5 sm:p-0 text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 touch-manipulation"
+                            title="View Details"
+                          >
+                            <Eye className="h-4 w-4 sm:h-4 sm:w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleEditCard(card)}
+                            className="p-1.5 sm:p-0 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 touch-manipulation"
+                            title="Edit"
+                          >
+                            <Edit className="h-4 w-4 sm:h-4 sm:w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleAddToCollection(card)}
+                            className="p-1.5 sm:p-0 text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300 touch-manipulation"
+                            title="Add to Collection"
+                          >
+                            <FolderPlus className="h-4 w-4 sm:h-4 sm:w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCard(card._id)}
+                            className="p-1.5 sm:p-0 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 touch-manipulation"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4 sm:h-4 sm:w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
-        
-        {filteredCards.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-gray-500 dark:text-gray-400">
-              {searchTerm || selectedCategory !== 'all' || selectedType !== 'all' 
-                ? 'No cards match your filters' 
-                : 'No cards found. Upload some content to get started!'}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Bulk Action Bar */}
@@ -907,43 +947,57 @@ const Cards = () => {
 
       {/* Card Detail Modal */}
       {showModal && selectedCard && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
-            <div className="p-4 sm:p-6">
-              {/* Modal Header */}
-              <div className="flex items-start justify-between mb-4 sm:mb-6 gap-3">
-                <div className="flex items-start space-x-2 sm:space-x-3 flex-1 min-w-0">
-                  <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-lg flex items-center justify-center flex-shrink-0 ${getTypeColor(selectedCard.type)}`}>
-                    {getTypeIcon(selectedCard.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-base sm:text-xl font-semibold text-gray-900 dark:text-white break-words">
-                      {selectedCard.title}
-                    </h2>
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTypeColor(selectedCard.type)}`}>
-                        {selectedCard.type}
-                      </span>
-                      <span className="break-words">{selectedCard.category}</span>
-                      {selectedCard.metadata?.rating && (
-                        <div className="flex items-center space-x-1">
-                          <Star className="h-3 w-3 text-yellow-400 fill-current" />
-                          <span>{selectedCard.metadata.rating}/5</span>
-                        </div>
-                      )}
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="relative max-w-4xl max-h-[98vh] sm:max-h-[95vh] w-full flex flex-col">
+            <button
+              onClick={() => {
+                setShowModal(false);
+                setSelectedCard(null);
+                setProvenanceExpanded(false);
+                setShowSourceFile(false);
+                if (previewHtmlUrl) {
+                  URL.revokeObjectURL(previewHtmlUrl);
+                  setPreviewHtmlUrl(null);
+                }
+              }}
+              className="absolute top-2 right-2 sm:top-4 sm:right-4 text-white hover:text-gray-300 active:text-gray-400 z-20 bg-black bg-opacity-50 rounded-full p-2 transition-colors touch-manipulation"
+              aria-label="Close modal"
+            >
+              ×
+            </button>
+            <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden flex flex-col max-h-full">
+              {/* Modal Header - Fixed with Color */}
+              <div className={`${getTypeColorForHeader(selectedCard.type)} p-4 sm:p-6 flex-shrink-0`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+                    <div className="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0">
+                      {getTypeIconForHeader(selectedCard.type)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-lg sm:text-2xl font-bold text-white truncate">
+                        {selectedCard.title}
+                      </h2>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-white/80 text-xs sm:text-sm mt-1">
+                        <span className="capitalize">{selectedCard.type}</span>
+                        <span>•</span>
+                        <span>{selectedCard.category}</span>
+                        {selectedCard.metadata?.rating && (
+                          <>
+                            <span>•</span>
+                            <div className="flex items-center space-x-1">
+                              <Star className="h-4 w-4 text-yellow-300 fill-current" />
+                              <span>{selectedCard.metadata.rating}/5</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0 p-1 touch-manipulation"
-                  aria-label="Close modal"
-                >
-                  <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
               </div>
+
+              {/* Modal Content - Scrollable */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
 
               {/* Modal Content */}
               <div className="space-y-4 sm:space-y-6">
@@ -1267,34 +1321,46 @@ const Cards = () => {
                   </div>
                 </div>
               </div>
+              </div>
 
               {/* Modal Footer */}
-              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 sm:space-x-3 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors touch-manipulation"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => {
-                    setShowModal(false);
-                    handleAddToCollection(selectedCard);
-                  }}
-                  className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-purple-500 text-white rounded-lg hover:bg-purple-600 active:bg-purple-700 transition-colors flex items-center justify-center space-x-2 touch-manipulation"
-                >
-                  <FolderPlus className="h-4 w-4" />
-                  <span>Add to Collection</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setShowModal(false);
-                    handleEditCard(selectedCard);
-                  }}
-                  className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-blue-500 text-white rounded-lg hover:bg-blue-600 active:bg-blue-700 transition-colors touch-manipulation"
-                >
-                  Edit Card
-                </button>
+              <div className="p-4 sm:p-6 pt-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+                  <button
+                    onClick={() => {
+                      setShowModal(false);
+                      setSelectedCard(null);
+                      setProvenanceExpanded(false);
+                      setShowSourceFile(false);
+                      if (previewHtmlUrl) {
+                        URL.revokeObjectURL(previewHtmlUrl);
+                        setPreviewHtmlUrl(null);
+                      }
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors touch-manipulation"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowModal(false);
+                      handleAddToCollection(selectedCard);
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-purple-500 text-white rounded-lg hover:bg-purple-600 active:bg-purple-700 transition-colors flex items-center justify-center space-x-2 touch-manipulation"
+                  >
+                    <FolderPlus className="h-4 w-4" />
+                    <span>Add to Collection</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowModal(false);
+                      handleEditCard(selectedCard);
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-blue-500 text-white rounded-lg hover:bg-blue-600 active:bg-blue-700 transition-colors touch-manipulation"
+                  >
+                    Edit Card
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1303,27 +1369,46 @@ const Cards = () => {
 
       {/* Edit Card Modal */}
       {showEditModal && editingCard && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-3xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
-            <div className="p-4 sm:p-6">
-              {/* Modal Header */}
-              <div className="flex items-center justify-between mb-4 sm:mb-6">
-                <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
-                  Edit Card
-                </h2>
-                <button
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setEditingCard(null);
-                  }}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="relative max-w-3xl max-h-[98vh] sm:max-h-[95vh] w-full flex flex-col">
+            <button
+              onClick={() => {
+                setShowEditModal(false);
+                setEditingCard(null);
+              }}
+              className="absolute top-2 right-2 sm:top-4 sm:right-4 text-white hover:text-gray-300 active:text-gray-400 z-20 bg-black bg-opacity-50 rounded-full p-2 transition-colors touch-manipulation"
+              aria-label="Close modal"
+            >
+              ×
+            </button>
+            <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden flex flex-col max-h-full">
+              {/* Modal Header - Fixed with Color */}
+              <div className={`${getTypeColorForHeader(editFormData.type)} p-4 sm:p-6 flex-shrink-0`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+                    <div className="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0">
+                      {getTypeIconForHeader(editFormData.type)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-lg sm:text-2xl font-bold text-white truncate">
+                        Edit Card
+                      </h2>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-white/80 text-xs sm:text-sm mt-1">
+                        <span className="capitalize">{editFormData.type}</span>
+                        {editFormData.category && (
+                          <>
+                            <span>•</span>
+                            <span>{editFormData.category}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
+              {/* Modal Content - Scrollable */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               {/* Form */}
               <div className="space-y-4">
                 {/* Title */}
@@ -1462,24 +1547,27 @@ const Cards = () => {
                   </label>
                 </div>
               </div>
+              </div>
 
               {/* Modal Footer */}
-              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 sm:space-x-3 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setEditingCard(null);
-                  }}
-                  className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors touch-manipulation"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUpdateCard}
-                  className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-blue-500 text-white rounded-lg hover:bg-blue-600 active:bg-blue-700 transition-colors touch-manipulation"
-                >
-                  Save Changes
-                </button>
+              <div className="p-4 sm:p-6 pt-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+                  <button
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingCard(null);
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors touch-manipulation"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdateCard}
+                    className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-blue-500 text-white rounded-lg hover:bg-blue-600 active:bg-blue-700 transition-colors touch-manipulation"
+                  >
+                    Save Changes
+                  </button>
+                </div>
               </div>
             </div>
           </div>

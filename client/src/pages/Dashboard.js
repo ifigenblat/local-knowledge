@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchCards } from '../store/slices/cardSlice';
 import { fetchCollections, fetchCollection } from '../store/slices/collectionSlice';
 import { BookOpen, Target, Quote, CheckSquare, Network, Star, Folder, FileText, X, ChevronDown, ChevronUp, File, ExternalLink } from 'lucide-react';
+import Card from '../components/Card';
 
 // Component to highlight snippet in source file content
 const SnippetHighlightedContent = ({ content, snippet }) => {
@@ -369,31 +370,15 @@ const Dashboard = () => {
             <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">Loading cards...</p>
           </div>
         ) : recentCards.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {recentCards.map(card => {
-              const IconComponent = getTypeIcon(card.type);
-              return (
-                <div
-                  key={card._id}
-                  onClick={() => handleCardClick(card)}
-                  className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow cursor-pointer"
-                >
-                  <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded mb-2 ${getTypeColor(card.type)}`}>
-                    <IconComponent className="h-3 w-3 text-white" />
-                    <span className="text-xs text-white font-medium capitalize">{card.type}</span>
-                  </div>
-                  <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 line-clamp-1">
-                    {card.title}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    {card.category}
-                  </p>
-                  <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 line-clamp-2 sm:line-clamp-3">
-                    {card.content}
-                  </p>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {recentCards.map(card => (
+              <Card
+                key={card._id}
+                card={card}
+                disableDefaultModal={true}
+                onCardClick={handleCardClick}
+              />
+            ))}
           </div>
         ) : (
           <div className="text-center py-6 sm:py-8 px-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
@@ -471,44 +456,57 @@ const Dashboard = () => {
 
       {/* Card Detail Modal */}
       {showCardModal && selectedCard && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
-            <div className="p-4 sm:p-6">
-              {/* Modal Header */}
-              <div className="flex items-start justify-between mb-4 sm:mb-6 gap-3">
-                <div className="flex items-start space-x-2 sm:space-x-3 flex-1 min-w-0">
-                  <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-lg flex items-center justify-center flex-shrink-0 ${getTypeColor(selectedCard.type)}`}>
-                    {React.createElement(getTypeIcon(selectedCard.type), { className: "h-4 w-4 sm:h-5 sm:w-5 text-white" })}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-base sm:text-xl font-semibold text-gray-900 dark:text-white break-words">
-                      {selectedCard.title}
-                    </h2>
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTypeColor(selectedCard.type)} text-white`}>
-                        {selectedCard.type}
-                      </span>
-                      <span className="break-words">{selectedCard.category}</span>
-                      {selectedCard.metadata?.rating && (
-                        <div className="flex items-center space-x-1">
-                          <Star className="h-3 w-3 text-yellow-400 fill-current" />
-                          <span>{selectedCard.metadata.rating}/5</span>
-                        </div>
-                      )}
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="relative max-w-4xl max-h-[98vh] sm:max-h-[95vh] w-full flex flex-col">
+            <button
+              onClick={() => {
+                setShowCardModal(false);
+                setSelectedCard(null);
+                setProvenanceExpanded(false);
+                setShowSourceFile(false);
+                if (previewHtmlUrl) {
+                  URL.revokeObjectURL(previewHtmlUrl);
+                  setPreviewHtmlUrl(null);
+                }
+              }}
+              className="absolute top-2 right-2 sm:top-4 sm:right-4 text-white hover:text-gray-300 active:text-gray-400 z-20 bg-black bg-opacity-50 rounded-full p-2 transition-colors touch-manipulation"
+              aria-label="Close modal"
+            >
+              ×
+            </button>
+            <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden flex flex-col max-h-full">
+              {/* Modal Header - Fixed with Color */}
+              <div className={`${getTypeColor(selectedCard.type)} p-4 sm:p-6 flex-shrink-0`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+                    <div className="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0">
+                      {React.createElement(getTypeIcon(selectedCard.type), { className: "h-4 w-4 sm:h-5 sm:w-5 text-white" })}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-lg sm:text-2xl font-bold text-white truncate">
+                        {selectedCard.title}
+                      </h2>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-white/80 text-xs sm:text-sm mt-1">
+                        <span className="capitalize">{selectedCard.type}</span>
+                        <span>•</span>
+                        <span>{selectedCard.category}</span>
+                        {selectedCard.metadata?.rating && (
+                          <>
+                            <span>•</span>
+                            <div className="flex items-center space-x-1">
+                              <Star className="h-4 w-4 text-yellow-300 fill-current" />
+                              <span>{selectedCard.metadata.rating}/5</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setShowCardModal(false);
-                    setSelectedCard(null);
-                  }}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0 p-1 touch-manipulation"
-                  aria-label="Close modal"
-                >
-                  <X className="h-5 w-5 sm:h-6 sm:w-6" />
-                </button>
               </div>
+
+              {/* Modal Content - Scrollable */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
 
               {/* Modal Content */}
               <div className="space-y-4 sm:space-y-6">
@@ -854,28 +852,43 @@ const Dashboard = () => {
                   </div>
                 </div>
               </div>
+              </div>
 
               {/* Modal Footer */}
-              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => {
-                    setShowCardModal(false);
-                    setSelectedCard(null);
-                  }}
-                  className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors touch-manipulation"
-                >
-                  Close
-                </button>
-                <Link
-                  to="/cards"
-                  onClick={() => {
-                    setShowCardModal(false);
-                    setSelectedCard(null);
-                  }}
-                  className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-blue-500 text-white rounded-lg hover:bg-blue-600 active:bg-blue-700 transition-colors touch-manipulation text-center"
-                >
-                  View All Cards
-                </Link>
+              <div className="p-4 sm:p-6 pt-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+                  <button
+                    onClick={() => {
+                      setShowCardModal(false);
+                      setSelectedCard(null);
+                      setProvenanceExpanded(false);
+                      setShowSourceFile(false);
+                      if (previewHtmlUrl) {
+                        URL.revokeObjectURL(previewHtmlUrl);
+                        setPreviewHtmlUrl(null);
+                      }
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors touch-manipulation"
+                  >
+                    Close
+                  </button>
+                  <Link
+                    to="/cards"
+                    onClick={() => {
+                      setShowCardModal(false);
+                      setSelectedCard(null);
+                      setProvenanceExpanded(false);
+                      setShowSourceFile(false);
+                      if (previewHtmlUrl) {
+                        URL.revokeObjectURL(previewHtmlUrl);
+                        setPreviewHtmlUrl(null);
+                      }
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-blue-500 text-white rounded-lg hover:bg-blue-600 active:bg-blue-700 transition-colors touch-manipulation text-center"
+                  >
+                    View All Cards
+                  </Link>
+                </div>
               </div>
             </div>
           </div>

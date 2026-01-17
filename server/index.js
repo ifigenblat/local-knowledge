@@ -9,12 +9,27 @@ const authRoutes = require('./routes/auth');
 const cardRoutes = require('./routes/cards');
 const uploadRoutes = require('./routes/upload');
 const collectionRoutes = require('./routes/collections');
+const previewRoutes = require('./routes/preview');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      frameSrc: ["'self'"],
+      frameAncestors: ["'self'"],
+    },
+  },
+}));
 
 // Trust proxy for rate limiting
 app.set('trust proxy', 1);
@@ -42,7 +57,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/uploads', express.static('uploads'));
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/card-app', {
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/local-knowledge', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
@@ -54,6 +69,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/cards', cardRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/collections', collectionRoutes);
+app.use('/api/preview', previewRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

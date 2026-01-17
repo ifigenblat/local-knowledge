@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchCards, deleteCardAsync } from '../store/slices/cardSlice';
+import { fetchCards, deleteCardAsync, updateCardAsync } from '../store/slices/cardSlice';
 import { toast } from 'react-hot-toast';
 import { Search, Loader2 } from 'lucide-react';
 import Card from '../components/Card';
@@ -11,6 +11,18 @@ const View = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingCard, setEditingCard] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    content: '',
+    type: 'concept',
+    category: '',
+    tags: [],
+    source: '',
+    isPublic: false
+  });
+  const [tagInput, setTagInput] = useState('');
 
   useEffect(() => {
     dispatch(fetchCards());
@@ -30,6 +42,61 @@ const View = () => {
     } catch (error) {
       toast.error(error || 'Failed to delete card');
     }
+  };
+
+  const handleEditCard = (card) => {
+    setEditingCard(card);
+    setEditFormData({
+      title: card.title || '',
+      content: card.content || '',
+      type: card.type || 'concept',
+      category: card.category || '',
+      tags: card.tags || [],
+      source: card.source || '',
+      isPublic: card.isPublic || false
+    });
+    setTagInput('');
+    setShowEditModal(true);
+  };
+
+  const handleUpdateCard = async () => {
+    if (!editingCard) return;
+
+    if (!editFormData.title.trim() || !editFormData.content.trim() || !editFormData.category.trim()) {
+      toast.error('Title, content, and category are required');
+      return;
+    }
+
+    try {
+      await dispatch(updateCardAsync({
+        cardId: editingCard._id,
+        cardData: editFormData
+      })).unwrap();
+      toast.success('Card updated successfully');
+      setShowEditModal(false);
+      setEditingCard(null);
+      // Refresh cards to get updated data
+      dispatch(fetchCards());
+    } catch (error) {
+      toast.error(error || 'Failed to update card');
+    }
+  };
+
+  const handleAddTag = () => {
+    if (tagInput.trim() && !editFormData.tags.includes(tagInput.trim())) {
+      setEditFormData({
+        ...editFormData,
+        tags: [...editFormData.tags, tagInput.trim()]
+      });
+      setTagInput('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove) => {
+    setEditFormData({
+      ...editFormData,
+      tags: editFormData.tags.filter(tag => tag !== tagToRemove)
+    });
   };
 
   // Filter cards based on search and filters
@@ -66,19 +133,19 @@ const View = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 pt-12 sm:pt-0">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
           View Cards ({filteredCards.length})
         </h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
+        <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
           Browse and view your learning cards
         </p>
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="flex flex-col sm:flex-row gap-4">
+      <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           {/* Search */}
           <div className="flex-1">
             <div className="relative">
@@ -145,14 +212,200 @@ const View = () => {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {filteredCards.map((card) => (
             <Card 
               key={card._id} 
               card={card} 
+              onEdit={handleEditCard}
               onDelete={handleDeleteCard}
             />
           ))}
+        </div>
+      )}
+
+      {/* Edit Card Modal */}
+      {showEditModal && editingCard && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-3xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
+                  Edit Card
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingCard(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Form */}
+              <div className="space-y-4">
+                {/* Title */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormData.title}
+                    onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                {/* Content */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Content <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={editFormData.content}
+                    onChange={(e) => setEditFormData({ ...editFormData, content: e.target.value })}
+                    rows={6}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    required
+                  />
+                </div>
+
+                {/* Type and Category */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Type
+                    </label>
+                    <select
+                      value={editFormData.type}
+                      onChange={(e) => setEditFormData({ ...editFormData, type: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="concept">Concept</option>
+                      <option value="action">Action</option>
+                      <option value="quote">Quote</option>
+                      <option value="checklist">Checklist</option>
+                      <option value="mindmap">Mindmap</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Category <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.category}
+                      onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Tags */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Tags
+                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddTag();
+                        }
+                      }}
+                      placeholder="Add a tag and press Enter"
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddTag}
+                      className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {editFormData.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {editFormData.tags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-full"
+                        >
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTag(tag)}
+                            className="ml-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Source */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Source
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormData.source}
+                    onChange={(e) => setEditFormData({ ...editFormData, source: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Is Public */}
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="isPublic"
+                    checked={editFormData.isPublic}
+                    onChange={(e) => setEditFormData({ ...editFormData, isPublic: e.target.checked })}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="isPublic" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                    Make this card public
+                  </label>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 sm:space-x-3 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingCard(null);
+                  }}
+                  className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors touch-manipulation"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateCard}
+                  className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-blue-500 text-white rounded-lg hover:bg-blue-600 active:bg-blue-700 transition-colors touch-manipulation"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

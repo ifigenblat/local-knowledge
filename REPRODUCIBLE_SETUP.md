@@ -1,8 +1,8 @@
-# 🚀 Card Creation App - Reproducible Setup Guide
+# 🚀 LocalKnowledge - Reproducible Setup Guide
 
 ## 📋 **Complete Configuration Documentation**
 
-This guide ensures you can reproduce the working card creation app consistently.
+This guide ensures you can reproduce the working LocalKnowledge app consistently.
 
 ## 🛠 **System Requirements**
 
@@ -14,7 +14,7 @@ This guide ensures you can reproduce the working card creation app consistently.
 ## 📁 **Project Structure**
 
 ```
-CardCreator/
+LocalKnowledge/
 ├── client/                 # React frontend
 │   ├── src/
 │   │   ├── components/     # UI components
@@ -61,7 +61,7 @@ cd ..
 Create `server/.env`:
 ```env
 PORT=5001
-MONGODB_URI=mongodb://localhost:27017/card-app
+MONGODB_URI=mongodb://localhost:27017/local-knowledge
 JWT_SECRET=your-secret-key-here-make-this-secure-in-production
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000
@@ -227,7 +227,7 @@ cd client && npm start
 ### **Root package.json**
 ```json
 {
-  "name": "card-creation-app",
+  "name": "local-knowledge",
   "version": "1.0.0",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
@@ -285,4 +285,4 @@ You'll know the setup is successful when:
 
 ---
 
-**Your MindNode card creation app is now fully reproducible! 🚀**
+**LocalKnowledge is now fully reproducible! 🚀**

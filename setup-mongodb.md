@@ -32,13 +32,13 @@
 3. Choose "Connect your application"
 4. Copy the connection string
 5. Replace `<password>` with your actual password
-6. Replace `<dbname>` with `card-app`
+6. Replace `<dbname>` with `local-knowledge`
 
 ## Step 6: Update Environment File
 Update your `server/.env` file with the MongoDB Atlas connection string:
 
 ```env
-MONGODB_URI=mongodb+srv://yourusername:yourpassword@cluster0.xxxxx.mongodb.net/card-app?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://yourusername:yourpassword@cluster0.xxxxx.mongodb.net/local-knowledge?retryWrites=true&w=majority
 ```
 
 ## Alternative: Use Local MongoDB with Docker
@@ -49,5 +49,5 @@ If you prefer to use Docker:
 docker run -d -p 27017:27017 --name mongodb mongo:latest
 ```
 
-Then use: `mongodb://localhost:27017/card-app` in your .env file.
+Then use: `mongodb://localhost:27017/local-knowledge` in your .env file.
 

@@ -3,7 +3,7 @@ const User = require('./models/User');
 
 async function checkUser() {
   try {
-    await mongoose.connect('mongodb://localhost:27017/cardcreator');
+    await mongoose.connect('mongodb://localhost:27017/local-knowledge');
     console.log('Connected to MongoDB');
     
     const user = await User.findOne({ email: 'test@example.com' });

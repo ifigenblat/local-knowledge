@@ -150,36 +150,36 @@ async function processContent(file) {
       case '.pdf':
         console.log('Processing PDF file');
         extractedText = await extractFromPDF(file.path);
-        cards = await createCardsFromText(extractedText, file.originalname);
+        cards = await createCardsFromText(extractedText, file.originalname, file.path);
         break;
       case '.docx':
       case '.doc':
         console.log('Processing Word document');
         extractedText = await extractFromWord(file.path);
-        cards = await createCardsFromText(extractedText, file.originalname);
+        cards = await createCardsFromText(extractedText, file.originalname, file.path);
         break;
       case '.xlsx':
       case '.xls':
         console.log('Processing Excel file');
-        cards = await extractFromExcel(file.path);
+        cards = await extractFromExcel(file.path, file.originalname);
         break;
       case '.txt':
       case '.md':
         console.log('Processing text file');
         extractedText = await extractFromText(file.path);
-        cards = await createCardsFromText(extractedText, file.originalname);
+        cards = await createCardsFromText(extractedText, file.originalname, file.path);
         break;
       case '.json':
         console.log('Processing JSON file');
         extractedText = await extractFromJSON(file.path);
-        cards = await createCardsFromText(extractedText, file.originalname);
+        cards = await createCardsFromText(extractedText, file.originalname, file.path);
         break;
       case '.png':
       case '.jpg':
       case '.jpeg':
         console.log('Processing image file');
         extractedText = await extractFromImage(file.path, file.originalname);
-        cards = await createCardsFromText(extractedText, file.originalname);
+        cards = await createCardsFromText(extractedText, file.originalname, file.path);
         break;
       default:
         throw new Error(`Unsupported file type: ${fileExtension}`);
@@ -228,7 +228,7 @@ async function extractFromWord(filePath) {
 /**
  * Extract text from Excel file and create cards from each row
  */
-async function extractFromExcel(filePath) {
+async function extractFromExcel(filePath, fileName = null) {
   try {
     console.log('Starting Excel file processing:', filePath);
     const workbook = XLSX.readFile(filePath);
@@ -267,7 +267,7 @@ async function extractFromExcel(filePath) {
         if (row && row.length > 0) {
           console.log(`Processing row ${rowIndex + 1}:`, row);
           // Create card from row data using the schema
-          const card = await createCardFromExcelRowWithSchema(row, rowIndex + 1, sheetName, schema);
+          const card = await createCardFromExcelRowWithSchema(row, rowIndex + 1, sheetName, schema, filePath);
           if (card) {
             allCards.push(card);
             console.log(`Card created for row ${rowIndex + 1}:`, card.title);
@@ -291,7 +291,7 @@ async function extractFromExcel(filePath) {
 /**
  * Create a card from an Excel row using the original schema
  */
-async function createCardFromExcelRowWithSchema(rowData, rowNumber, sheetName, schema) {
+async function createCardFromExcelRowWithSchema(rowData, rowNumber, sheetName, schema, filePath = null) {
   try {
     console.log(`Creating card for row ${rowNumber}, data:`, rowData);
     
@@ -374,6 +374,13 @@ async function createCardFromExcelRowWithSchema(rowData, rowNumber, sheetName, s
     // Add sheet name and row number as tags
     tags.push(sheetName.toLowerCase(), `row-${rowNumber}`);
 
+    // Create snippet from row data
+    const rowDataString = JSON.stringify(structuredContent).substring(0, 500);
+    const snippet = rowDataString + (JSON.stringify(structuredContent).length > 500 ? '...' : '');
+    
+    // Location information (cell range)
+    const cellRange = `${sheetName}!Row ${rowNumber}`;
+    
     const card = {
       title: title,
       content: column2Content || 'No content', // Store only column 2 value directly
@@ -387,6 +394,10 @@ async function createCardFromExcelRowWithSchema(rowData, rowNumber, sheetName, s
         excelColumns: schema.length,
         schema: schema.map(col => col.name),
         structuredData: structuredContent
+      },
+      provenance: {
+        location: cellRange,
+        snippet: snippet
       }
     };
 
@@ -449,16 +460,17 @@ Description: This is an image file that may contain visual information, charts, 
 /**
  * Create cards from extracted text
  */
-async function createCardsFromText(text, sourceFileName) {
+async function createCardsFromText(text, sourceFileName, filePath = null) {
   const cards = [];
   
   // Split text into sections (paragraphs, sections, etc.)
   const sections = splitTextIntoSections(text);
   
-  for (const section of sections) {
+  for (let i = 0; i < sections.length; i++) {
+    const section = sections[i];
     if (section.trim().length < 10) continue; // Skip very short sections
     
-    const card = await createCardFromSection(section, sourceFileName);
+    const card = await createCardFromSection(section, sourceFileName, filePath, i + 1, sections.length);
     if (card) {
       cards.push(card);
     }
@@ -492,7 +504,7 @@ function splitTextIntoSections(text) {
 /**
  * Create a card from a text section
  */
-async function createCardFromSection(section, sourceFileName) {
+async function createCardFromSection(section, sourceFileName, filePath = null, sectionIndex = 1, totalSections = 1) {
   try {
     // Clean the text
     const cleanText = section.trim().replace(/\s+/g, ' ');
@@ -511,13 +523,23 @@ async function createCardFromSection(section, sourceFileName) {
     // Extract tags
     const tags = extractTags(cleanText);
     
+    // Create snippet (first 500 chars of original section)
+    const snippet = section.trim().substring(0, 500) + (section.trim().length > 500 ? '...' : '');
+    
+    // Location information (paragraph/section range)
+    const location = `Paragraph ${sectionIndex} of ${totalSections}`;
+    
     return {
       title: title || 'Untitled Card',
       content: cleanText,
       type: cardType,
       category: category,
       tags: tags,
-      source: sourceFileName
+      source: sourceFileName,
+      provenance: {
+        location: location,
+        snippet: snippet
+      }
     };
     
   } catch (error) {

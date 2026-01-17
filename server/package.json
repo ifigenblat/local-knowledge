@@ -1,7 +1,7 @@
 {
-  "name": "card-creation-server",
+  "name": "local-knowledge-server",
   "version": "1.0.0",
-  "description": "Backend server for card creation app",
+  "description": "Backend server for LocalKnowledge app",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

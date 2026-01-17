@@ -6,7 +6,7 @@ require('dotenv').config();
 async function resetPassword() {
   try {
     // Use the MongoDB URI from .env or default
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/cardcreator';
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/local-knowledge';
     await mongoose.connect(mongoUri);
     console.log('Connected to MongoDB');
     

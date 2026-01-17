@@ -79,7 +79,49 @@ const cardSchema = new mongoose.Schema({
     mimetype: String,
     size: Number,
     path: String
-  }]
+  }],
+  // Provenance and Evidence fields for trust tracking
+  provenance: {
+    source_file_id: {
+      type: String,
+      trim: true
+    },
+    source_path: {
+      type: String,
+      trim: true
+    },
+    file_hash: {
+      type: String,
+      trim: true
+    },
+    location: {
+      // Can be page number, paragraph number, cell range, etc.
+      type: String,
+      trim: true
+    },
+    snippet: {
+      // Original excerpt used to generate the card
+      type: String,
+      maxlength: 5000
+    },
+    model_name: {
+      // AI model name if used for generation
+      type: String,
+      trim: true
+    },
+    prompt_version: {
+      // Version of prompt used for generation
+      type: String,
+      trim: true,
+      default: '1.0'
+    },
+    confidence_score: {
+      // Confidence score (0-1) for the card generation
+      type: Number,
+      min: 0,
+      max: 1
+    }
+  }
 }, {
   timestamps: true
 });

@@ -1,8 +1,8 @@
 const jwt = require('jsonwebtoken');
 
 const auth = (req, res, next) => {
-  // Get token from header
-  const token = req.header('Authorization')?.replace('Bearer ', '');
+  // Get token from header or query parameter (for iframe requests)
+  let token = req.header('Authorization')?.replace('Bearer ', '') || req.query.token;
 
   // Check if no token
   if (!token) {

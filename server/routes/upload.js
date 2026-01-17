@@ -14,12 +14,35 @@ function generateContentHash(title, content) {
   return crypto.createHash('sha256').update(contentToHash).digest('hex');
 }
 
+// Helper function to generate file hash
+function generateFileHash(filePath) {
+  try {
+    const fileBuffer = fs.readFileSync(filePath);
+    return crypto.createHash('sha256').update(fileBuffer).digest('hex');
+  } catch (error) {
+    console.error('Error generating file hash:', error);
+    return null;
+  }
+}
+
 // Helper function to create or update card with duplicate detection
-async function createOrUpdateCard(cardData, userId, file) {
+async function createOrUpdateCard(cardData, userId, file, fileHash, fileId = null) {
   const contentHash = generateContentHash(cardData.title, cardData.content);
   
   // Check for existing card with same content hash
   const existingCard = contentHash ? await Card.findDuplicate(contentHash, userId) : null;
+  
+  // Prepare provenance information
+  const provenance = {
+    source_file_id: fileId || file.filename,
+    source_path: file.path,
+    file_hash: fileHash,
+    location: cardData.provenance?.location || null,
+    snippet: cardData.provenance?.snippet || null,
+    model_name: cardData.provenance?.model_name || null,
+    prompt_version: cardData.provenance?.prompt_version || '1.0',
+    confidence_score: cardData.provenance?.confidence_score || null
+  };
   
   if (existingCard) {
     // Update existing card with new file attachment
@@ -34,6 +57,11 @@ async function createOrUpdateCard(cardData, userId, file) {
     // Update source to include new file
     if (!existingCard.source.includes(file.originalname)) {
       existingCard.source = `${existingCard.source}, ${file.originalname}`;
+    }
+    
+    // Update provenance if not already set
+    if (!existingCard.provenance.source_file_id) {
+      existingCard.provenance = provenance;
     }
     
     await existingCard.save();
@@ -55,7 +83,8 @@ async function createOrUpdateCard(cardData, userId, file) {
         mimetype: file.mimetype,
         size: file.size,
         path: file.path
-      }]
+      }],
+      provenance: provenance
     });
 
     await card.save();
@@ -116,7 +145,11 @@ router.post('/', auth, upload.single('file'), async (req, res) => {
     }
 
     const file = req.file;
-    const { category, tags } = req.body;
+    const { category, tags, model_name, prompt_version, confidence_score } = req.body;
+
+    // Generate file hash for provenance tracking
+    const fileHash = generateFileHash(file.path);
+    const fileId = file.filename;
 
     // Process the uploaded file
     console.log('Starting file processing for:', file.originalname);
@@ -139,15 +172,24 @@ router.post('/', auth, upload.single('file'), async (req, res) => {
       console.log(`Processing item ${i + 1}/${processedContent.length}:`, item.title);
       
       try {
+        // Merge provenance from content processor with additional metadata
+        const provenance = {
+          ...(item.provenance || {}),
+          model_name: model_name || item.provenance?.model_name || null,
+          prompt_version: prompt_version || item.provenance?.prompt_version || '1.0',
+          confidence_score: confidence_score ? parseFloat(confidence_score) : item.provenance?.confidence_score || null
+        };
+        
         const cardData = {
           title: item.title,
           content: item.content,
           type: item.type || 'concept',
           category: category || item.category || 'General',
-          tags: tags ? tags.split(',').map(tag => tag.trim()) : item.tags || []
+          tags: tags ? tags.split(',').map(tag => tag.trim()) : item.tags || [],
+          provenance: provenance
         };
 
-        const result = await createOrUpdateCard(cardData, req.user.id, file);
+        const result = await createOrUpdateCard(cardData, req.user.id, file, fileHash, fileId);
         
         if (result.isDuplicate) {
           updatedCards.push(result.card);
@@ -201,11 +243,15 @@ router.post('/multiple', auth, upload.array('files', 5), async (req, res) => {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    const { category, tags } = req.body;
+    const { category, tags, model_name, prompt_version, confidence_score } = req.body;
     const results = [];
 
     for (const file of req.files) {
       try {
+        // Generate file hash for provenance tracking
+        const fileHash = generateFileHash(file.path);
+        const fileId = file.filename;
+        
         const processedContent = await processContent(file);
         
         if (processedContent && processedContent.length > 0) {
@@ -213,15 +259,24 @@ router.post('/multiple', auth, upload.array('files', 5), async (req, res) => {
           const updatedCards = [];
           
           for (const item of processedContent) {
+            // Merge provenance from content processor with additional metadata
+            const provenance = {
+              ...(item.provenance || {}),
+              model_name: model_name || item.provenance?.model_name || null,
+              prompt_version: prompt_version || item.provenance?.prompt_version || '1.0',
+              confidence_score: confidence_score ? parseFloat(confidence_score) : item.provenance?.confidence_score || null
+            };
+            
             const cardData = {
               title: item.title,
               content: item.content,
               type: item.type || 'concept',
               category: category || item.category || 'General',
-              tags: tags ? tags.split(',').map(tag => tag.trim()) : item.tags || []
+              tags: tags ? tags.split(',').map(tag => tag.trim()) : item.tags || [],
+              provenance: provenance
             };
 
-            const result = await createOrUpdateCard(cardData, req.user.id, file);
+            const result = await createOrUpdateCard(cardData, req.user.id, file, fileHash, fileId);
             
             if (result.isDuplicate) {
               updatedCards.push(result.card);

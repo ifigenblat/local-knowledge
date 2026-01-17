@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 
 async function fixUser() {
   try {
-    await mongoose.connect('mongodb://localhost:27017/cardcreator');
+    await mongoose.connect('mongodb://localhost:27017/local-knowledge');
     console.log('Connected to MongoDB');
     
     // Delete existing test user

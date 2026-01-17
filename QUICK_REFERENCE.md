@@ -1,4 +1,4 @@
-# 🚀 Card Creation App - Quick Reference
+# 🚀 LocalKnowledge - Quick Reference
 
 ## 📋 **Essential Commands**
 
@@ -141,7 +141,7 @@ cd server && npm run dev
 cd client && npm start
 
 # Check database
-docker exec -it mongodb mongosh card-app
+docker exec -it mongodb mongosh local-knowledge
 ```
 
 ## 📝 **Environment Variables**
@@ -149,7 +149,7 @@ docker exec -it mongodb mongosh card-app
 ### **Backend (.env)**
 ```env
 PORT=5001
-MONGODB_URI=mongodb://localhost:27017/card-app
+MONGODB_URI=mongodb://localhost:27017/local-knowledge
 JWT_SECRET=your-secret-key-here
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000

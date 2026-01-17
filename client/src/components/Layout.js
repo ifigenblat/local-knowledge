@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/slices/authSlice';
@@ -10,13 +10,16 @@ import {
   Table,
   Grid,
   LogOut,
-  User
+  User,
+  Menu,
+  X
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -32,22 +35,41 @@ const Layout = ({ children }) => {
       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border-transparent';
   };
 
+  const handleLinkClick = () => {
+    setSidebarOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        aria-label="Toggle menu"
+      >
+        {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+      </button>
+
       {/* Sidebar */}
-      <div className="fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
+      <div className={`
+        fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
+        transform transition-transform duration-300 ease-in-out
+        lg:translate-x-0
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center justify-center h-16 border-b border-gray-200 dark:border-gray-700">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-              CardCreator
+              LocalKnowledge
             </h1>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-2">
+          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             <Link
               to="/dashboard"
+              onClick={handleLinkClick}
               className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${getActiveClass('/dashboard')}`}
             >
               <Home className="w-5 h-5 mr-3" />
@@ -56,6 +78,7 @@ const Layout = ({ children }) => {
 
             <Link
               to="/upload"
+              onClick={handleLinkClick}
               className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${getActiveClass('/upload')}`}
             >
               <Upload className="w-5 h-5 mr-3" />
@@ -65,6 +88,7 @@ const Layout = ({ children }) => {
             {/* View Cards - Grid Layout */}
             <Link
               to="/view"
+              onClick={handleLinkClick}
               className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${getActiveClass('/view')}`}
             >
               <Grid className="w-5 h-5 mr-3" />
@@ -74,6 +98,7 @@ const Layout = ({ children }) => {
             {/* Cards - Table Layout */}
             <Link
               to="/cards"
+              onClick={handleLinkClick}
               className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${getActiveClass('/cards')}`}
             >
               <Table className="w-5 h-5 mr-3" />
@@ -82,6 +107,7 @@ const Layout = ({ children }) => {
 
             <Link
               to="/collections"
+              onClick={handleLinkClick}
               className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${getActiveClass('/collections')}`}
             >
               <FolderOpen className="w-5 h-5 mr-3" />
@@ -115,9 +141,17 @@ const Layout = ({ children }) => {
         </div>
       </div>
 
+      {/* Overlay for mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Main Content */}
-      <div className="ml-64">
-        <main className="p-6">
+      <div className="lg:ml-64">
+        <main className="p-4 sm:p-6">
           {children}
         </main>
       </div>

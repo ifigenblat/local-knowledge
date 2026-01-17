@@ -59,7 +59,7 @@ router.get('/:id', auth, async (req, res) => {
 // Create a new card
 router.post('/', auth, async (req, res) => {
   try {
-    const { title, content, type, category, tags, source, isPublic } = req.body;
+    const { title, content, type, category, tags, source, isPublic, provenance } = req.body;
 
     const card = new Card({
       title,
@@ -69,7 +69,8 @@ router.post('/', auth, async (req, res) => {
       tags: tags || [],
       source,
       isPublic: isPublic || false,
-      user: req.user.id
+      user: req.user.id,
+      provenance: provenance || {}
     });
 
     await card.save();
@@ -85,7 +86,7 @@ router.post('/', auth, async (req, res) => {
 // Update a card
 router.put('/:id', auth, async (req, res) => {
   try {
-    const { title, content, type, category, tags, source, isPublic } = req.body;
+    const { title, content, type, category, tags, source, isPublic, provenance } = req.body;
 
     const card = await Card.findOne({ _id: req.params.id, user: req.user.id });
     if (!card) {
@@ -100,6 +101,10 @@ router.put('/:id', auth, async (req, res) => {
     if (tags) card.tags = tags;
     if (source !== undefined) card.source = source;
     if (isPublic !== undefined) card.isPublic = isPublic;
+    if (provenance) {
+      // Merge provenance fields instead of replacing entirely
+      card.provenance = { ...card.provenance, ...provenance };
+    }
 
     await card.save();
     res.json(card);

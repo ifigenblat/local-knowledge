@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { loadUser } from './store/slices/authSlice';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -11,7 +12,27 @@ import Collections from './pages/Collections';
 import Layout from './components/Layout';
 
 const App = () => {
-  const { isAuthenticated } = useSelector(state => state.auth);
+  const dispatch = useDispatch();
+  const { isAuthenticated, loading, token } = useSelector(state => state.auth);
+
+  // Load user on app initialization if token exists
+  useEffect(() => {
+    if (token && !isAuthenticated) {
+      dispatch(loadUser());
+    }
+  }, [dispatch, token, isAuthenticated]);
+
+  // Show loading state while checking authentication
+  if (loading && token) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Router>

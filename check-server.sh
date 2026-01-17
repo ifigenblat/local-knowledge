@@ -41,7 +41,7 @@ if [ ! -f "server/.env" ]; then
     print_status "Creating server/.env file..."
     cat > server/.env << EOF
 PORT=5001
-MONGODB_URI=mongodb://localhost:27017/card-app
+MONGODB_URI=mongodb://localhost:27017/local-knowledge
 JWT_SECRET=$(openssl rand -base64 32)
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000

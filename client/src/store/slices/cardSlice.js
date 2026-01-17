@@ -19,6 +19,24 @@ export const fetchCards = createAsyncThunk(
   }
 );
 
+// Async thunk for updating a card
+export const updateCardAsync = createAsyncThunk(
+  'cards/updateCardAsync',
+  async ({ cardId, cardData }, { rejectWithValue }) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.put(`/api/cards/${cardId}`, cardData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update card');
+    }
+  }
+);
+
 // Async thunk for deleting a card
 export const deleteCardAsync = createAsyncThunk(
   'cards/deleteCardAsync',
@@ -117,6 +135,22 @@ const cardSlice = createSlice({
         }
       })
       .addCase(fetchCards.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(updateCardAsync.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateCardAsync.fulfilled, (state, action) => {
+        state.loading = false;
+        // Update the card in the state
+        const index = state.cards.findIndex(card => card._id === action.payload._id);
+        if (index !== -1) {
+          state.cards[index] = action.payload;
+        }
+      })
+      .addCase(updateCardAsync.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })

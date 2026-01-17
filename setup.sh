@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# CardCreator Card Creation App - Automated Setup Script
+# LocalKnowledge - Automated Setup Script
 # This script sets up the complete environment for reproducible deployment
 
-echo "🚀 Setting up CardCreator Card Creation App..."
+echo "🚀 Setting up LocalKnowledge..."
 
 # Colors for output
 RED='\033[0;31m'
@@ -110,7 +110,7 @@ create_env_files() {
     if [ ! -f "server/.env" ]; then
         cat > server/.env << EOF
 PORT=5001
-MONGODB_URI=mongodb://localhost:27017/card-app
+MONGODB_URI=mongodb://localhost:27017/local-knowledge
 JWT_SECRET=your-secret-key-here-make-this-secure-in-production
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000
@@ -187,7 +187,7 @@ test_setup() {
 
 # Main setup function
 main() {
-    echo "🎯 CardCreator Card Creation App Setup"
+    echo "🎯 LocalKnowledge Setup"
     echo "=================================="
     
     check_node

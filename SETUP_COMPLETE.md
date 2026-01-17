@@ -1,4 +1,4 @@
-# 🎉 Card Creation App Setup Complete!
+# 🎉 LocalKnowledge Setup Complete!
 
 ## ✅ **Option 2 Successfully Implemented: MongoDB with Docker**
 
@@ -46,22 +46,13 @@ Open your browser and go to: **http://localhost:3000**
 - Organize cards into collections for better learning
 - Share collections with others
 
-## 📁 **Your MindNode Files**
-The app is specifically optimized for your leadership content:
-- **Manual of me.mindnode**
-- **Master Prioritization.mindnode** 
-- **Managing Processes.mindnode**
-- **Managing People.mindnode**
-
-You can upload these files and the app will create interactive cards from your leadership and management content.
-
 ## 🔧 **Technical Details:**
 
 ### **Database:**
 - MongoDB running in Docker container
 - Container name: `mongodb`
 - Port: 27017
-- Database: `card-app`
+- Database: `local-knowledge`
 
 ### **Backend:**
 - Node.js with Express
@@ -113,7 +104,7 @@ cd client && npm start
 ```
 
 ## 🎯 **Next Steps:**
-1. **Upload your MindNode files** to see the card generation in action
+1. **Upload your files** to see the card generation in action
 2. **Explore the features** - try creating collections and rating cards
 3. **Customize the app** - modify card types, categories, or styling
 4. **Share with others** - the app supports user registration and sharing
@@ -123,7 +114,7 @@ cd client && npm start
 - If MongoDB fails, restart the Docker container: `docker restart mongodb`
 - If you get port conflicts, the app will automatically use alternative ports
 
-**Your card creation app is now fully operational! 🎉**
+**LocalKnowledge is now fully operational! 🎉**
 
 
 

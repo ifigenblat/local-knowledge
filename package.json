@@ -1,5 +1,5 @@
 {
-  "name": "card-creation-app",
+  "name": "local-knowledge",
   "version": "1.0.0",
   "description": "A React and Node.js app that creates cards from uploaded content",
   "main": "server/index.js",
@@ -21,7 +21,13 @@
     "test:frontend": "curl -I http://localhost:3000",
     "test:proxy": "curl http://localhost:3000/api/health"
   },
-  "keywords": ["react", "nodejs", "cards", "content", "leadership"],
+  "keywords": [
+    "react",
+    "nodejs",
+    "cards",
+    "content",
+    "leadership"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -30,6 +36,8 @@
   "engines": {
     "node": ">=16.0.0",
     "npm": ">=8.0.0"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
   }
 }
-

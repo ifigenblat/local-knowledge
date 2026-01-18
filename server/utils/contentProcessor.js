@@ -799,6 +799,7 @@ function extractTags(text) {
 module.exports = {
   processContent,
   createCardsFromText,
+  createCardFromSection,
   determineCardType,
   generateTitle,
   determineCategory,

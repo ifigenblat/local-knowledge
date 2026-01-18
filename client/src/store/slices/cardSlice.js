@@ -73,6 +73,24 @@ export const deleteCardAsync = createAsyncThunk(
   }
 );
 
+// Async thunk for regenerating a card from snippet
+export const regenerateCardAsync = createAsyncThunk(
+  'cards/regenerateCardAsync',
+  async (cardId, { rejectWithValue }) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`/api/cards/${cardId}/regenerate`, {}, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.error || error.response?.data?.message || 'Failed to regenerate card');
+    }
+  }
+);
+
 const initialState = {
   cards: [],
   loading: false,
@@ -190,6 +208,22 @@ const cardSlice = createSlice({
         state.cards = state.cards.filter(card => card._id !== action.payload);
       })
       .addCase(deleteCardAsync.rejected, (state, action) => {
+        state.error = action.payload;
+      })
+      .addCase(regenerateCardAsync.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(regenerateCardAsync.fulfilled, (state, action) => {
+        state.loading = false;
+        // Update the regenerated card in the state
+        const index = state.cards.findIndex(card => card._id === action.payload._id);
+        if (index !== -1) {
+          state.cards[index] = action.payload;
+        }
+      })
+      .addCase(regenerateCardAsync.rejected, (state, action) => {
+        state.loading = false;
         state.error = action.payload;
       });
   },

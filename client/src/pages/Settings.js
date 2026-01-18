@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { updateProfile, resetPassword, loadUser } from '../store/slices/authSlice';
 import { toast } from 'react-hot-toast';
 import { User, Lock, Save, X, Eye, EyeOff } from 'lucide-react';
 
 const Settings = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { user, loading } = useSelector((state) => state.auth);
   
   // Profile form state
@@ -116,15 +118,33 @@ const Settings = () => {
     );
   }
 
+  const handleClose = () => {
+    // Navigate back to previous page, or dashboard if no history
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/dashboard');
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Account Settings
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Manage your profile information and password
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            Account Settings
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Manage your profile information and password
+          </p>
+        </div>
+        <button
+          onClick={handleClose}
+          className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          aria-label="Close settings"
+        >
+          <X className="w-6 h-6" />
+        </button>
       </div>
 
       {/* Tabs */}

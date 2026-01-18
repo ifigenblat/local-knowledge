@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/slices/authSlice';
 import { 
@@ -11,12 +11,12 @@ import {
   LogOut,
   User,
   Menu,
-  X,
-  Settings
+  X
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -122,32 +122,33 @@ const Layout = ({ children }) => {
               <FolderOpen className="w-5 h-5 mr-3" />
               Collections
             </Link>
-
-            <Link
-              to="/settings"
-              onClick={handleLinkClick}
-              className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${getActiveClass('/settings')}`}
-            >
-              <Settings className="w-5 h-5 mr-3" />
-              Settings
-            </Link>
           </nav>
 
           {/* User Section */}
           <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex items-center mb-3">
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+            <button
+              onClick={() => {
+                navigate('/settings');
+                setSidebarOpen(false);
+              }}
+              className={`w-full flex items-center mb-3 p-2 rounded-lg transition-colors ${
+                location.pathname === '/settings'
+                  ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
+              }`}
+            >
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                 <User className="w-4 h-4 text-white" />
               </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
+              <div className="ml-3 text-left flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">
                   {user?.name || 'User'}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                   {user?.email}
                 </p>
               </div>
-            </div>
+            </button>
             <button
               onClick={handleLogout}
               className="w-full flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"

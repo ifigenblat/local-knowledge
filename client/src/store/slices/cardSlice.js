@@ -19,6 +19,24 @@ export const fetchCards = createAsyncThunk(
   }
 );
 
+// Async thunk for creating a card
+export const createCardAsync = createAsyncThunk(
+  'cards/createCardAsync',
+  async (cardData, { rejectWithValue }) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post('/api/cards', cardData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to create card');
+    }
+  }
+);
+
 // Async thunk for updating a card
 export const updateCardAsync = createAsyncThunk(
   'cards/updateCardAsync',
@@ -135,6 +153,19 @@ const cardSlice = createSlice({
         }
       })
       .addCase(fetchCards.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(createCardAsync.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createCardAsync.fulfilled, (state, action) => {
+        state.loading = false;
+        // Add the new card to the beginning of the cards array
+        state.cards.unshift(action.payload);
+      })
+      .addCase(createCardAsync.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })

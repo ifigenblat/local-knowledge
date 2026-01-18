@@ -172,6 +172,19 @@ router.post('/', auth, upload.single('file'), async (req, res) => {
       console.log(`Processing item ${i + 1}/${processedContent.length}:`, item.title);
       
       try {
+        // Validate content is meaningful before creating card
+        if (!item.content || typeof item.content !== 'string' || item.content.trim().length < 10) {
+          console.log(`Skipping item ${i + 1}: content is empty or too short`);
+          continue;
+        }
+        
+        // Check for placeholder text
+        const placeholderTexts = ['No content', 'no content', 'N/A', 'n/a', 'NA', 'na', 'None', 'none', 'Null', 'null'];
+        if (placeholderTexts.includes(item.content.trim())) {
+          console.log(`Skipping item ${i + 1}: content is placeholder text`);
+          continue;
+        }
+        
         // Merge provenance from content processor with additional metadata
         const provenance = {
           ...(item.provenance || {}),
@@ -259,6 +272,19 @@ router.post('/multiple', auth, upload.array('files', 5), async (req, res) => {
           const updatedCards = [];
           
           for (const item of processedContent) {
+            // Validate content is meaningful before creating card
+            if (!item.content || typeof item.content !== 'string' || item.content.trim().length < 10) {
+              console.log(`Skipping item: content is empty or too short`);
+              continue;
+            }
+            
+            // Check for placeholder text
+            const placeholderTexts = ['No content', 'no content', 'N/A', 'n/a', 'NA', 'na', 'None', 'none', 'Null', 'null'];
+            if (placeholderTexts.includes(item.content.trim())) {
+              console.log(`Skipping item: content is placeholder text`);
+              continue;
+            }
+            
             // Merge provenance from content processor with additional metadata
             const provenance = {
               ...(item.provenance || {}),

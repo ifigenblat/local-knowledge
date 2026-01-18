@@ -8,6 +8,36 @@ const XLSX = require('xlsx');
 // Initialize tokenizer for text analysis
 const tokenizer = new natural.WordTokenizer();
 
+/**
+ * Validate that card content is meaningful (not empty, not just whitespace, not placeholder text)
+ */
+function hasMeaningfulContent(content, minLength = 10) {
+  if (!content || typeof content !== 'string') {
+    return false;
+  }
+  
+  const trimmed = content.trim();
+  
+  // Check minimum length
+  if (trimmed.length < minLength) {
+    return false;
+  }
+  
+  // Check for placeholder text
+  const placeholderTexts = ['No content', 'no content', 'N/A', 'n/a', 'NA', 'na', 'None', 'none', 'Null', 'null'];
+  if (placeholderTexts.includes(trimmed)) {
+    return false;
+  }
+  
+  // Check that it's not just whitespace or special characters
+  const meaningfulChars = trimmed.replace(/[\s\-_\.]/g, '');
+  if (meaningfulChars.length < minLength / 2) {
+    return false;
+  }
+  
+  return true;
+}
+
 // Keywords that indicate different card types
 const CARD_TYPE_KEYWORDS = {
   concept: ['concept', 'definition', 'theory', 'principle', 'framework', 'model'],
@@ -341,6 +371,12 @@ async function createCardFromExcelRowWithSchema(rowData, rowNumber, sheetName, s
       return null;
     }
 
+    // Validate that we have meaningful content (not just empty or "No content")
+    if (!hasMeaningfulContent(column2Content, 10)) {
+      console.log(`Row ${rowNumber} has no meaningful content, skipping`);
+      return null;
+    }
+
     // Generate title from the first non-empty cell or use row number
     let title = '';
     for (let i = 0; i < rowData.length; i++) {
@@ -383,7 +419,7 @@ async function createCardFromExcelRowWithSchema(rowData, rowNumber, sheetName, s
     
     const card = {
       title: title,
-      content: column2Content || 'No content', // Store only column 2 value directly
+      content: column2Content, // Store only column 2 value directly
       type: 'concept', // Default type for Excel data
       category: 'Data', // Default category for structured data
       tags: tags.slice(0, 10), // Limit to 10 tags
@@ -509,7 +545,11 @@ async function createCardFromSection(section, sourceFileName, filePath = null, s
     // Clean the text
     const cleanText = section.trim().replace(/\s+/g, ' ');
     
-    if (cleanText.length < 10) return null;
+    // Validate content is meaningful
+    if (!hasMeaningfulContent(cleanText, 10)) {
+      console.log(`Section ${sectionIndex} has no meaningful content, skipping`);
+      return null;
+    }
     
     // Determine card type based on content
     const cardType = determineCardType(cleanText);

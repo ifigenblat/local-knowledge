@@ -4,11 +4,14 @@ import { useSelector, useDispatch } from 'react-redux';
 import { loadUser } from './store/slices/authSlice';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
 import Cards from './pages/Cards';
 import View from './pages/View';
 import Collections from './pages/Collections';
+import Settings from './pages/Settings';
 import Layout from './components/Layout';
 
 const App = () => {
@@ -35,11 +38,18 @@ const App = () => {
   }
 
   return (
-    <Router>
+    <Router
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}
+    >
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" />} />
         <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to="/dashboard" />} />
+        <Route path="/forgot-password" element={!isAuthenticated ? <ForgotPassword /> : <Navigate to="/dashboard" />} />
+        <Route path="/reset-password" element={!isAuthenticated ? <ResetPassword /> : <Navigate to="/dashboard" />} />
         
         {/* Protected routes */}
         <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
@@ -48,6 +58,7 @@ const App = () => {
         <Route path="/cards" element={isAuthenticated ? <Layout><Cards /></Layout> : <Navigate to="/login" />} />
         <Route path="/view" element={isAuthenticated ? <Layout><View /></Layout> : <Navigate to="/login" />} />
         <Route path="/collections" element={isAuthenticated ? <Layout><Collections /></Layout> : <Navigate to="/login" />} />
+        <Route path="/settings" element={isAuthenticated ? <Layout><Settings /></Layout> : <Navigate to="/login" />} />
       </Routes>
     </Router>
   );

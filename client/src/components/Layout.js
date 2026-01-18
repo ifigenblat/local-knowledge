@@ -5,14 +5,14 @@ import { logout } from '../store/slices/authSlice';
 import { 
   Home, 
   Upload, 
-  BookOpen, 
   FolderOpen,
   Table,
   Grid,
   LogOut,
   User,
   Menu,
-  X
+  X,
+  Settings
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
@@ -59,8 +59,17 @@ const Layout = ({ children }) => {
       `}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-center h-16 border-b border-gray-200 dark:border-gray-700">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+          <div className="flex items-center justify-center gap-2 h-16 border-b border-gray-200 dark:border-gray-700 px-4">
+            <img 
+              src={`${process.env.PUBLIC_URL || ''}/logo.png`}
+              alt="LocalKnowledge Logo" 
+              className="h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0 object-contain"
+              onError={(e) => {
+                console.error('Logo failed to load:', e.target.src);
+                e.target.style.display = 'none';
+              }}
+            />
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">
               LocalKnowledge
             </h1>
           </div>
@@ -112,6 +121,15 @@ const Layout = ({ children }) => {
             >
               <FolderOpen className="w-5 h-5 mr-3" />
               Collections
+            </Link>
+
+            <Link
+              to="/settings"
+              onClick={handleLinkClick}
+              className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${getActiveClass('/settings')}`}
+            >
+              <Settings className="w-5 h-5 mr-3" />
+              Settings
             </Link>
           </nav>
 

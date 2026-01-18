@@ -61,17 +61,23 @@ router.post('/', auth, async (req, res) => {
   try {
     const { title, content, type, category, tags, source, isPublic, provenance } = req.body;
 
-    const card = new Card({
+    const cardData = {
       title,
       content,
       type,
       category,
       tags: tags || [],
-      source,
+      source: source || '',
       isPublic: isPublic || false,
-      user: req.user.id,
-      provenance: provenance || {}
-    });
+      user: req.user.id
+    };
+    
+    // Only include provenance if it's provided and not empty
+    if (provenance && Object.keys(provenance).length > 0) {
+      cardData.provenance = provenance;
+    }
+    
+    const card = new Card(cardData);
 
     await card.save();
     res.status(201).json(card);

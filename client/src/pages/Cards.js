@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { fetchCards, deleteCardAsync, updateCardAsync } from '../store/slices/cardSlice';
+import { fetchCards, deleteCardAsync, updateCardAsync, createCardAsync } from '../store/slices/cardSlice';
 import { fetchCollections, addCardToCollection, removeCardFromCollection, fetchCollection } from '../store/slices/collectionSlice';
 import { toast } from 'react-hot-toast';
 import { 
@@ -26,7 +26,8 @@ import {
   Target,
   Quote,
   CheckSquare,
-  Network
+  Network,
+  Plus
 } from 'lucide-react';
 
 // Component to highlight snippet in source file content
@@ -87,6 +88,7 @@ const Cards = () => {
   const [selectedCard, setSelectedCard] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCollectionModal, setShowCollectionModal] = useState(false);
   const [cardForCollection, setCardForCollection] = useState(null);
   const [editingCard, setEditingCard] = useState(null);
@@ -173,6 +175,43 @@ const Cards = () => {
     setShowModal(false); // Close view modal if open
   };
 
+  const handleCreateCard = async () => {
+    if (!editFormData.title.trim() || !editFormData.content.trim() || !editFormData.category.trim()) {
+      toast.error('Title, content, and category are required');
+      return;
+    }
+
+    try {
+      await dispatch(createCardAsync(editFormData)).unwrap();
+      toast.success('Card created successfully');
+      setShowCreateModal(false);
+      setEditFormData({
+        title: '',
+        content: '',
+        type: 'concept',
+        category: '',
+        tags: [],
+        source: '',
+        isPublic: false
+      });
+      setTagInput('');
+      // Refresh cards to get updated data
+      dispatch(fetchCards());
+    } catch (error) {
+      // Handle different error formats
+      let errorMessage = 'Failed to create card';
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.error) {
+        errorMessage = error.error;
+      }
+      console.error('Create card error:', error);
+      toast.error(errorMessage);
+    }
+  };
+
   const handleUpdateCard = async () => {
     if (!editingCard) return;
 
@@ -194,6 +233,20 @@ const Cards = () => {
     } catch (error) {
       toast.error(error || 'Failed to update card');
     }
+  };
+
+  const handleOpenCreateModal = () => {
+    setEditFormData({
+      title: '',
+      content: '',
+      type: 'concept',
+      category: '',
+      tags: [],
+      source: '',
+      isPublic: false
+    });
+    setTagInput('');
+    setShowCreateModal(true);
   };
 
   const handleAddTag = () => {
@@ -585,15 +638,24 @@ const Cards = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
             Cards ({filteredCards.length})
           </h1>
-          {selectedCollection && (
+          <div className="flex items-center space-x-2">
             <button
-              onClick={handleClearCollectionFilter}
-              className="flex items-center space-x-2 px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+              onClick={handleOpenCreateModal}
+              className="flex items-center space-x-2 px-4 py-2 text-sm sm:text-base bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
-              <X className="h-4 w-4" />
-              <span>Clear Filter</span>
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Add Card</span>
             </button>
-          )}
+            {selectedCollection && (
+              <button
+                onClick={handleClearCollectionFilter}
+                className="flex items-center space-x-2 px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+              >
+                <X className="h-4 w-4" />
+                <span>Clear Filter</span>
+              </button>
+            )}
+          </div>
         </div>
         {selectedCollection ? (
           <div className="flex items-center space-x-2">
@@ -777,7 +839,7 @@ const Cards = () => {
                         {card.category}
                       </td>
                       <td className="hidden lg:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {card.source}
+                        {card.source || '—'}
                       </td>
                       <td className="hidden sm:table-cell px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-1 sm:space-x-2">
@@ -1049,98 +1111,107 @@ const Cards = () => {
                 )}
 
                 {/* Provenance */}
-                {(selectedCard.provenance || selectedCard.attachments?.length > 0) && (
-                  <div>
-                    <button
-                      onClick={() => setProvenanceExpanded(!provenanceExpanded)}
-                      className="w-full flex items-center justify-between text-base sm:text-lg font-medium text-gray-900 dark:text-white mb-2 sm:mb-3 hover:text-blue-600 dark:hover:text-blue-400 transition-colors touch-manipulation"
-                    >
-                      <span>Provenance & Evidence</span>
-                      {provenanceExpanded ? (
-                        <ChevronUp className="h-5 w-5" />
-                      ) : (
-                        <ChevronDown className="h-5 w-5" />
-                      )}
-                    </button>
-                    {provenanceExpanded && (
-                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3 text-xs sm:text-sm">
-                      {selectedCard.provenance?.source_file_id && (
-                        <div className="flex flex-col sm:flex-row gap-1 sm:gap-0">
+                {(() => {
+                  const hasProvenance = selectedCard.provenance && Object.keys(selectedCard.provenance).length > 0;
+                  const hasAttachments = selectedCard.attachments?.length > 0;
+                  
+                  if (!hasProvenance && !hasAttachments) {
+                    return null;
+                  }
+                  
+                  return (
+                    <div key="provenance-section">
+                      <button
+                        onClick={() => setProvenanceExpanded(!provenanceExpanded)}
+                        className="w-full flex items-center justify-between text-base sm:text-lg font-medium text-gray-900 dark:text-white mb-2 sm:mb-3 hover:text-blue-600 dark:hover:text-blue-400 transition-colors touch-manipulation"
+                      >
+                        <span>Provenance & Evidence</span>
+                        {provenanceExpanded ? (
+                          <ChevronUp className="h-5 w-5" />
+                        ) : (
+                          <ChevronDown className="h-5 w-5" />
+                        )}
+                      </button>
+                      {provenanceExpanded && (
+                        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3 text-xs sm:text-sm">
+                          {selectedCard.provenance?.source_file_id && (
+                            <div className="flex flex-col sm:flex-row gap-1 sm:gap-0">
                           <span className="text-gray-500 dark:text-gray-400 sm:w-32 sm:flex-shrink-0">Source File ID:</span>
                           <span className="text-gray-900 dark:text-white break-all">{selectedCard.provenance.source_file_id}</span>
                         </div>
-                      )}
-                      {selectedCard.provenance?.source_path && (
+                          )}
+                          {selectedCard.provenance?.source_path && (
                         <div className="flex flex-col sm:flex-row gap-1 sm:gap-0">
                           <span className="text-gray-500 dark:text-gray-400 sm:w-32 sm:flex-shrink-0">Source Path:</span>
                           <span className="text-gray-900 dark:text-white break-all">{selectedCard.provenance.source_path}</span>
                         </div>
-                      )}
-                      {selectedCard.provenance?.file_hash && (
+                          )}
+                          {selectedCard.provenance?.file_hash && (
                         <div className="flex flex-col sm:flex-row gap-1 sm:gap-0">
                           <span className="text-gray-500 dark:text-gray-400 sm:w-32 sm:flex-shrink-0">File Hash:</span>
                           <span className="text-gray-900 dark:text-white font-mono text-xs break-all">{selectedCard.provenance.file_hash}</span>
                         </div>
-                      )}
-                      {selectedCard.provenance?.location && (
+                          )}
+                          {selectedCard.provenance?.location && (
                         <div className="flex flex-col sm:flex-row gap-1 sm:gap-0">
                           <span className="text-gray-500 dark:text-gray-400 sm:w-32 sm:flex-shrink-0">Location:</span>
                           <span className="text-gray-900 dark:text-white break-words">{selectedCard.provenance.location}</span>
                         </div>
-                      )}
-                      {selectedCard.provenance?.model_name && (
+                          )}
+                          {selectedCard.provenance?.model_name && (
                         <div className="flex flex-col sm:flex-row gap-1 sm:gap-0">
                           <span className="text-gray-500 dark:text-gray-400 sm:w-32 sm:flex-shrink-0">Model Name:</span>
                           <span className="text-gray-900 dark:text-white break-words">{selectedCard.provenance.model_name}</span>
                         </div>
-                      )}
-                      {selectedCard.provenance?.prompt_version && (
+                          )}
+                          {selectedCard.provenance?.prompt_version && (
                         <div className="flex flex-col sm:flex-row gap-1 sm:gap-0">
                           <span className="text-gray-500 dark:text-gray-400 sm:w-32 sm:flex-shrink-0">Prompt Version:</span>
                           <span className="text-gray-900 dark:text-white break-words">{selectedCard.provenance.prompt_version}</span>
                         </div>
-                      )}
-                      {selectedCard.provenance?.confidence_score !== null && selectedCard.provenance?.confidence_score !== undefined && (
+                          )}
+                          {selectedCard.provenance?.confidence_score !== null && selectedCard.provenance?.confidence_score !== undefined && (
                         <div className="flex flex-col sm:flex-row gap-1 sm:gap-0">
                           <span className="text-gray-500 dark:text-gray-400 sm:w-32 sm:flex-shrink-0">Confidence Score:</span>
                           <span className="text-gray-900 dark:text-white">
                             {(selectedCard.provenance.confidence_score * 100).toFixed(1)}%
                           </span>
                         </div>
-                      )}
-                      {selectedCard.provenance?.snippet && (
+                          )}
+                          {selectedCard.provenance?.snippet && (
                         <div>
                           <span className="text-gray-500 dark:text-gray-400">Snippet:</span>
                           <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 mt-1 italic break-words">{selectedCard.provenance.snippet}</p>
                         </div>
-                      )}
+                          )}
 
-                      {/* View Source File Button - Show if there's a file reference */}
-                      {(selectedCard.attachments?.length > 0 || selectedCard.provenance?.source_file_id) && (
-                        <div className="pt-3 border-t border-gray-300 dark:border-gray-600">
-                          <button
-                            onClick={handleViewSourceFile}
-                            disabled={loadingSourceFile}
-                            className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors touch-manipulation"
-                          >
-                            {loadingSourceFile ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                <span>Loading source file...</span>
-                              </>
-                            ) : (
-                              <>
-                                <File className="h-4 w-4" />
-                                <span>{showSourceFile ? 'Hide' : 'View'} Source File</span>
-                              </>
-                            )}
-                          </button>
+                          {/* View Source File Button - Show if there's a file reference */}
+                          {(selectedCard.attachments?.length > 0 || selectedCard.provenance?.source_file_id) && (
+                            <div className="pt-3 border-t border-gray-300 dark:border-gray-600">
+                              <button
+                                onClick={handleViewSourceFile}
+                                disabled={loadingSourceFile}
+                                className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors touch-manipulation"
+                              >
+                                {loadingSourceFile ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                    <span>Loading source file...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <File className="h-4 w-4" />
+                                    <span>{showSourceFile ? 'Hide' : 'View'} Source File</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  );
+                })()}
 
                 {/* Source File Viewer - Always show when a file is available and viewer is open */}
                 {showSourceFile && (selectedCard.provenance?.source_file_id || selectedCard.attachments?.[0]?.filename) && (() => {
@@ -1302,7 +1373,7 @@ const Cards = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
                     <div className="flex flex-col sm:flex-row gap-1 sm:gap-0">
                       <span className="text-gray-500 dark:text-gray-400 sm:w-24 sm:flex-shrink-0">Source:</span>
-                      <span className="text-gray-900 dark:text-white break-words">{selectedCard.source}</span>
+                      <span className="text-gray-900 dark:text-white break-words">{selectedCard.source || '—'}</span>
                     </div>
                     {selectedCard.metadata?.lastReviewed && (
                       <div className="flex flex-col sm:flex-row gap-1 sm:gap-0">
@@ -1566,6 +1637,231 @@ const Cards = () => {
                     className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-blue-500 text-white rounded-lg hover:bg-blue-600 active:bg-blue-700 transition-colors touch-manipulation"
                   >
                     Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Card Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="relative max-w-3xl max-h-[98vh] sm:max-h-[95vh] w-full flex flex-col">
+            <button
+              onClick={() => {
+                setShowCreateModal(false);
+                setEditFormData({
+                  title: '',
+                  content: '',
+                  type: 'concept',
+                  category: '',
+                  tags: [],
+                  source: '',
+                  isPublic: false
+                });
+                setTagInput('');
+              }}
+              className="absolute top-2 right-2 sm:top-4 sm:right-4 text-white hover:text-gray-300 active:text-gray-400 z-20 bg-black bg-opacity-50 rounded-full p-2 transition-colors touch-manipulation"
+              aria-label="Close modal"
+            >
+              ×
+            </button>
+            <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden flex flex-col max-h-full">
+              {/* Modal Header - Fixed with Color */}
+              <div className={`${getTypeColorForHeader(editFormData.type)} p-4 sm:p-6 flex-shrink-0`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+                    <div className="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0">
+                      {getTypeIconForHeader(editFormData.type)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-lg sm:text-2xl font-bold text-white truncate">
+                        Create New Card
+                      </h2>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-white/80 text-xs sm:text-sm mt-1">
+                        <span className="capitalize">{editFormData.type}</span>
+                        {editFormData.category && (
+                          <>
+                            <span>•</span>
+                            <span>{editFormData.category}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Content - Scrollable */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              {/* Form */}
+              <div className="space-y-4">
+                {/* Title */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormData.title}
+                    onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                {/* Content */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Content <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={editFormData.content}
+                    onChange={(e) => setEditFormData({ ...editFormData, content: e.target.value })}
+                    rows={6}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    required
+                  />
+                </div>
+
+                {/* Type and Category */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Type
+                    </label>
+                    <select
+                      value={editFormData.type}
+                      onChange={(e) => setEditFormData({ ...editFormData, type: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="concept">Concept</option>
+                      <option value="action">Action</option>
+                      <option value="quote">Quote</option>
+                      <option value="checklist">Checklist</option>
+                      <option value="mindmap">Mindmap</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Category <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.category}
+                      onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Tags */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Tags
+                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddTag();
+                        }
+                      }}
+                      placeholder="Add a tag and press Enter"
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddTag}
+                      className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {editFormData.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {editFormData.tags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-full"
+                        >
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTag(tag)}
+                            className="ml-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Source */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Source
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormData.source}
+                    onChange={(e) => setEditFormData({ ...editFormData, source: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Is Public */}
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="isPublicCreate"
+                    checked={editFormData.isPublic}
+                    onChange={(e) => setEditFormData({ ...editFormData, isPublic: e.target.checked })}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="isPublicCreate" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                    Make this card public
+                  </label>
+                </div>
+              </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 sm:p-6 pt-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+                  <button
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      setEditFormData({
+                        title: '',
+                        content: '',
+                        type: 'concept',
+                        category: '',
+                        tags: [],
+                        source: '',
+                        isPublic: false
+                      });
+                      setTagInput('');
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors touch-manipulation"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateCard}
+                    className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-blue-500 text-white rounded-lg hover:bg-blue-600 active:bg-blue-700 transition-colors touch-manipulation"
+                  >
+                    Create Card
                   </button>
                 </div>
               </div>

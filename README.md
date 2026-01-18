@@ -9,12 +9,14 @@ A full-stack React and Node.js application that automatically creates interactiv
 
 ## Features
 
-- **File Upload & Processing**: Support for PDF, DOCX, TXT, MD, JSON, XLSX, and image files
-- **Automatic Card Generation**: AI-powered content analysis to create different card types
+- **File Upload & Processing**: Support for PDF, DOCX, DOC, TXT, MD, JSON, XLSX, XLS, and image files (PNG, JPG, JPEG, GIF)
+- **Automatic Card Generation**: Content analysis to create different card types
 - **Interactive Card Viewing**: Full-screen modal with scrollable content for long text
 - **Smart Categorization**: Automatic tagging and categorization based on content
 - **Search & Filter**: Advanced search and filtering capabilities
-- **Collections**: Organize cards into collections and decks
+- **Collections**: Organize cards into collections
+- **Account Management**: Profile updates and password management
+- **Email Password Reset**: Secure password reset via email (MailHog for development, SMTP for production)
 - **Responsive Design**: Modern UI with dark mode support
 - **Enhanced User Experience**: Improved card viewing with no overlapping issues
 
@@ -32,18 +34,23 @@ A full-stack React and Node.js application that automatically creates interactiv
 - **Node.js** with Express
 - **MongoDB** with Mongoose
 - **JWT Authentication**
+- **bcryptjs** for password hashing
 - **Multer** for file uploads
+- **Nodemailer** for email sending
 - **Natural** for text processing
 - **PDF-parse** and **Mammoth** for document processing
+- **Helmet** for security headers
+- **express-rate-limit** for rate limiting
 
 ### Frontend
 - **React 18** with hooks
 - **Redux Toolkit** for state management
-- **React Router** for navigation
+- **React Router v6** for navigation
+- **Axios** for HTTP requests
 - **Tailwind CSS** for styling
-- **Framer Motion** for animations
 - **React Dropzone** for file uploads
 - **Lucide React** for icons
+- **React Hot Toast** for notifications
 
 ## 🚀 Quick Start
 
@@ -88,6 +95,14 @@ docker run -d --name mongodb -p 27017:27017 mongo:latest
    JWT_SECRET=your-secret-key-here-make-this-secure-in-production
    NODE_ENV=development
    CLIENT_URL=http://localhost:3000
+   
+   # Email Configuration (Local Development)
+   MAILHOG_HOST=127.0.0.1
+   MAILHOG_PORT=1025
+   
+   # For Gmail SMTP (Optional - for production):
+   # SMTP_USER=your-email@gmail.com
+   # SMTP_PASS=your-app-password
    ```
 
 4. **Start the application**
@@ -139,25 +154,37 @@ local-knowledge/
 ### Authentication
 - `POST /api/auth/register` - User registration
 - `POST /api/auth/login` - User login
-- `GET /api/auth/me` - Get current user
+- `GET /api/auth/me` - Get current user profile
+- `PUT /api/auth/profile` - Update user profile (name, email)
+- `PUT /api/auth/password` - Change password (requires current password)
+- `POST /api/auth/forgot-password` - Request password reset email
+- `POST /api/auth/reset-password` - Reset password with token from email (token in request body)
 
 ### Cards
-- `GET /api/cards` - Get all cards (with filters)
+- `GET /api/cards` - Get all cards (with filters, pagination)
+- `GET /api/cards/:id` - Get single card by ID
+- `GET /api/cards/category/:category` - Get cards by category
+- `GET /api/cards/type/:type` - Get cards by type
 - `POST /api/cards` - Create a new card
 - `PUT /api/cards/:id` - Update a card
 - `DELETE /api/cards/:id` - Delete a card
-- `PATCH /api/cards/:id/review` - Mark card as reviewed
-- `PATCH /api/cards/:id/rate` - Rate a card
 
 ### Upload
 - `POST /api/upload` - Upload and process a single file
-- `POST /api/upload/multiple` - Upload multiple files
+- `POST /api/upload/multiple` - Upload multiple files (up to 5)
+- `GET /api/upload/progress/:id` - Get upload progress
 
 ### Collections
 - `GET /api/collections` - Get all collections
+- `GET /api/collections/:id` - Get collection with cards
 - `POST /api/collections` - Create a collection
 - `PUT /api/collections/:id` - Update a collection
 - `DELETE /api/collections/:id` - Delete a collection
+- `POST /api/collections/:id/cards` - Add card to collection
+- `DELETE /api/collections/:id/cards/:cardId` - Remove card from collection
+
+### Preview
+- `GET /api/preview/:filename` - Preview uploaded file content
 
 ## Usage
 
@@ -165,25 +192,37 @@ local-knowledge/
 
 1. Navigate to the Upload page
 2. Drag and drop files or click to select
-3. Supported formats: PDF, DOCX, TXT, MD, JSON, XLSX, images
+3. Supported formats: PDF, DOCX, DOC, TXT, MD, JSON, XLSX, XLS, PNG, JPG, JPEG, GIF
 4. Files are automatically processed and cards are generated
 5. Review and edit generated cards as needed
+6. Maximum file size: 10MB per file
 
 ### Managing Cards
 
 - **View Cards**: Browse all cards with search and filter options
+  - **Grid View**: Visual card layout (View page)
+  - **Table View**: Detailed list with sorting (Cards page)
 - **Full Card View**: Click any card to open a full-screen modal with complete content
 - **Scrollable Content**: Long content is displayed in scrollable areas for better readability
-- **Edit Cards**: Click the edit button to modify card content
-- **Rate Cards**: Use the star rating system to rate cards
-- **Review Cards**: Mark cards as reviewed to track progress
+- **Create Cards**: Use "Add Card" button to manually create cards
+- **Edit Cards**: Click the edit button to modify card content, tags, and metadata
 - **Delete Cards**: Remove unwanted cards
+- **Filter & Search**: Filter by type, category, tags, or search by title/content
 
 ### Creating Collections
 
 - Group related cards into collections
-- Share collections with others
-- Export collections for offline use
+- Create collections with names and descriptions
+- Add/remove cards from collections
+- Organize learning content by topic
+
+### Account Management
+
+- **Profile Settings**: Update your name and email in the Settings page
+- **Password Management**: 
+  - Change password (requires current password)
+  - Reset password via email ("Forgot password?" on login page)
+- **Email Reset Flow**: Secure token-based password reset with 1-hour expiration
 
 ## Content Processing
 
@@ -224,17 +263,9 @@ The app uses natural language processing to:
 2. Deploy the `build` folder to your hosting service
 3. Update the API base URL for production
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+We welcome contributions! 
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
@@ -255,20 +286,23 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-If you have any questions or need help, please:
-- Open an [issue](https://github.com/yourusername/local-knowledge/issues)
-- Check our [documentation](https://github.com/yourusername/local-knowledge/wiki)
-- Contact the maintainers
+For support and questions, please:
+- Open an [issue](https://github.com/ifigenblat/local-knowledge/issues)
+- Check our [documentation](https://github.com/ifigenblat/local-knowledge)
+- Review [QUICK_REFERENCE.md](QUICK_REFERENCE.md) for common commands
 
 ---
 
 ⭐ **Star this repository if you found it helpful!**
 
-## Support
-
-For support and questions, please open an issue on GitHub or contact the development team.
-
 ## Recent Improvements
+
+### Account Management (Latest)
+- **Settings Page**: Complete account management interface
+- **Profile Updates**: Update name and email
+- **Password Management**: Change password with current password verification
+- **Email Password Reset**: Secure password reset via email
+- **MailHog Integration**: Local email testing for development
 
 ### Enhanced Card Viewing Experience
 - **Full-Screen Modal**: Click any card to view complete content in a beautiful modal
@@ -283,6 +317,8 @@ For support and questions, please open an issue on GitHub or contact the develop
 - **Better Performance**: Optimized rendering and scrolling
 - **Enhanced UX**: Smooth interactions and clear visual feedback
 - **Mobile-Friendly**: Touch-friendly scrolling and responsive layout
+- **Email System**: Nodemailer integration with MailHog (dev) and SMTP (prod)
+- **Security**: Helmet.js, rate limiting, secure password reset tokens
 
 ## Roadmap
 

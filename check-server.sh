@@ -45,6 +45,14 @@ MONGODB_URI=mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge
 JWT_SECRET=$(openssl rand -base64 32)
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000
+
+# Email Configuration (Local Development)
+MAILHOG_HOST=127.0.0.1
+MAILHOG_PORT=1025
+
+# For Gmail SMTP (Optional - uncomment to use):
+# SMTP_USER=your-email@gmail.com
+# SMTP_PASS=your-app-password
 EOF
     print_success "Created server/.env file with secure JWT_SECRET"
 else
@@ -179,6 +187,7 @@ REQUIRED_ROUTES=(
     "server/routes/cards.js"
     "server/routes/upload.js"
     "server/routes/collections.js"
+    "server/routes/preview.js"
 )
 
 for route in "${REQUIRED_ROUTES[@]}"; do
@@ -212,6 +221,21 @@ if [ -f "server/middleware/auth.js" ]; then
 else
     print_error "server/middleware/auth.js is missing"
 fi
+
+# 9. Check utility files
+print_status "Checking utility files..."
+REQUIRED_UTILS=(
+    "server/utils/contentProcessor.js"
+    "server/utils/email.js"
+)
+
+for util in "${REQUIRED_UTILS[@]}"; do
+    if [ -f "$util" ]; then
+        print_success "$util exists"
+    else
+        print_error "$util is missing"
+    fi
+done
 
 # Summary
 echo ""

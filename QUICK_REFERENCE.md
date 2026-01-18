@@ -57,6 +57,7 @@ npm run build
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:5001
 - **Health Check**: http://localhost:5001/api/health
+- **MailHog** (Email Testing): http://localhost:8025
 
 ## 🔐 **Default Test Account**
 
@@ -71,10 +72,11 @@ npm run build
 - `package.json` - Root scripts and dependencies
 
 ### **Critical Components**
-- `server/models/Collection.js` - Collection model
-- `client/src/store/slices/authSlice.js` - Authentication
-- `client/src/store/index.js` - Redux store
-- `client/src/pages/Dashboard.js` - Main dashboard
+- `server/models/` - User, Card, Collection models
+- `server/routes/` - Auth, Cards, Upload, Collections, Preview routes
+- `client/src/store/slices/` - Redux slices (auth, cards, collections)
+- `client/src/pages/` - All page components (Dashboard, Cards, View, Upload, Collections, Settings, Auth pages)
+- `client/src/components/` - Reusable components (Layout, Card, UploadZone, ImageZoomViewer)
 
 ### **File Storage**
 - `server/uploads/` - Uploaded files storage
@@ -115,9 +117,9 @@ npm run install-all
 
 ## 📊 **File Types Supported**
 
-- **Documents**: PDF, DOCX, TXT, MD, JSON
-- **Spreadsheets**: XLSX (Excel files)
-- **Images**: PNG, JPG, JPEG
+- **Documents**: PDF, DOCX, DOC, TXT, MD, JSON
+- **Spreadsheets**: XLSX, XLS (Excel files)
+- **Images**: PNG, JPG, JPEG, GIF
 
 ## 🎯 **Typical Workflow**
 
@@ -125,11 +127,12 @@ npm run install-all
 2. **Open browser**: http://localhost:3000
 3. **Login/Register**: Use test account or create new one
 4. **Upload files**: Go to Upload page, drag & drop files
-5. **View cards**: Check View or Cards pages
+5. **View cards**: Check View (grid) or Cards (table) pages
 6. **Click cards**: Open full-screen modal to view complete content
 7. **Scroll content**: Long text is scrollable within the modal
 8. **Create collections**: Organize cards by topic
-9. **Rate & review**: Track learning progress
+9. **Manage account**: Update profile and password in Settings
+10. **Reset password**: Use "Forgot password?" link on login page
 
 ## 🔧 **Development Commands**
 
@@ -146,13 +149,21 @@ docker exec -it mongodb mongosh local-knowledge
 
 ## 📝 **Environment Variables**
 
-### **Backend (.env)**
+### **Backend (server/.env)**
 ```env
 PORT=5001
 MONGODB_URI=mongodb://localhost:27017/local-knowledge
 JWT_SECRET=your-secret-key-here
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000
+
+# Email Configuration (Local Development)
+MAILHOG_HOST=127.0.0.1
+MAILHOG_PORT=1025
+
+# For Gmail SMTP (Optional - uncomment to use):
+# SMTP_USER=your-email@gmail.com
+# SMTP_PASS=your-app-password
 ```
 
 ## 🎉 **Success Indicators**
@@ -163,6 +174,23 @@ CLIENT_URL=http://localhost:3000
 ✅ Can register/login  
 ✅ Can upload files  
 ✅ Cards are created from uploads  
+✅ Password reset emails appear in MailHog (http://localhost:8025)  
+✅ Settings page accessible for profile/password management
+
+## 🔐 **Authentication Features**
+
+- **User Registration** - Create new accounts
+- **Login/Logout** - JWT-based authentication
+- **Profile Management** - Update name and email in Settings
+- **Password Management** - Change password (Settings) or reset via email
+- **Forgot Password** - Email-based password reset flow
+- **Protected Routes** - All main pages require authentication
+
+## 📧 **Email System**
+
+- **Development**: MailHog captures emails locally (http://localhost:8025)
+- **Production**: Configure Gmail SMTP or custom SMTP in `.env`
+- **Password Reset**: Emails sent with secure reset tokens (1 hour expiration)  
 
 ---
 

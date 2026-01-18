@@ -1,4 +1,4 @@
-# MongoDB Atlas Setup Instructionss
+# MongoDB Setup Instructions
 
 ## Step 1: Create MongoDB Atlas Account
 1. Go to https://www.mongodb.com/atlas
@@ -42,12 +42,88 @@ MONGODB_URI=mongodb+srv://yourusername:yourpassword@cluster0.xxxxx.mongodb.net/l
 ```
 
 ## Alternative: Use Local MongoDB with Docker
-If you prefer to use Docker:
+
+If you prefer to use a local MongoDB instance with Docker:
+
+### Option 1: Simple Setup (No Authentication)
 
 ```bash
 # Install Docker Desktop first, then run:
-docker run -d -p 27017:27017 --name mongodb mongo:latest
+docker run -d --name mongodb -p 27017:27017 mongo:latest
+
+# Start existing container
+docker start mongodb
 ```
 
-Then use: `mongodb://localhost:27017/local-knowledge` in your .env file.
+**Connection String**: `mongodb://localhost:27017/local-knowledge`
 
+### Option 2: With Authentication (Recommended for Production)
+
+```bash
+# Create MongoDB container with authentication
+docker run -d --name mongodb -p 27017:27017 \
+  -e MONGO_INITDB_ROOT_USERNAME=localknowledge \
+  -e MONGO_INITDB_ROOT_PASSWORD=myknowledge \
+  -e MONGO_INITDB_DATABASE=local-knowledge \
+  mongo:latest --auth
+```
+
+**Connection String**: `mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge?authSource=admin`
+
+### Docker Management Commands
+
+```bash
+# Start MongoDB container
+docker start mongodb
+
+# Stop MongoDB container
+docker stop mongodb
+
+# View MongoDB logs
+docker logs mongodb
+
+# Remove MongoDB container (fresh start)
+docker rm mongodb
+
+# Check if MongoDB is running
+docker ps | grep mongodb
+```
+
+### Verify MongoDB Connection
+
+After starting MongoDB, verify it's working:
+
+```bash
+# Connect to MongoDB (without auth)
+docker exec -it mongodb mongosh local-knowledge
+
+# Or with authentication
+docker exec -it mongodb mongosh local-knowledge -u localknowledge -p myknowledge --authenticationDatabase admin
+```
+
+## Troubleshooting
+
+### MongoDB Connection Issues
+
+- **Docker not running**: Start Docker Desktop
+- **Container not running**: `docker start mongodb`
+- **Port already in use**: Stop the process using port 27017 or remove the container
+- **Connection refused**: Check if MongoDB container is running with `docker ps`
+- **Authentication failed**: Ensure you're using the correct username/password and `authSource=admin`
+
+### Check MongoDB Status
+
+```bash
+# Check if container exists and is running
+docker ps -a | grep mongodb
+
+# View container logs
+docker logs mongodb
+
+# Test connection from application
+curl http://localhost:5001/api/health
+```
+
+---
+
+**Note**: For local development, Option 1 (no authentication) is simpler. For production or shared environments, use Option 2 (with authentication).

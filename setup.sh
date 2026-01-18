@@ -134,6 +134,14 @@ MONGODB_URI=mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge
 JWT_SECRET=your-secret-key-here-make-this-secure-in-production
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000
+
+# Email Configuration (Local Development)
+MAILHOG_HOST=127.0.0.1
+MAILHOG_PORT=1025
+
+# For Gmail SMTP (Optional - uncomment to use):
+# SMTP_USER=your-email@gmail.com
+# SMTP_PASS=your-app-password
 EOF
         print_success "Created server/.env file"
     else
@@ -147,9 +155,25 @@ verify_files() {
     
     REQUIRED_FILES=(
         "server/models/Collection.js"
+        "server/models/Card.js"
+        "server/models/User.js"
+        "server/utils/contentProcessor.js"
+        "server/utils/email.js"
+        "server/middleware/auth.js"
         "client/src/store/slices/authSlice.js"
+        "client/src/store/slices/cardSlice.js"
+        "client/src/store/slices/collectionSlice.js"
         "client/src/store/index.js"
         "client/src/pages/Dashboard.js"
+        "client/src/pages/Login.js"
+        "client/src/pages/Register.js"
+        "client/src/pages/ForgotPassword.js"
+        "client/src/pages/ResetPassword.js"
+        "client/src/pages/Settings.js"
+        "client/src/pages/Upload.js"
+        "client/src/pages/Cards.js"
+        "client/src/pages/View.js"
+        "client/src/pages/Collections.js"
     )
     
     for file in "${REQUIRED_FILES[@]}"; do
@@ -222,10 +246,12 @@ main() {
     echo "🎉 Setup completed successfully!"
     echo ""
     echo "📋 Next steps:"
-    echo "1. Run 'npm run dev' to start the application"
-    echo "2. Open http://localhost:3000 in your browser"
-    echo "3. Register a new account or use test@example.com / password"
-    echo "4. Upload your files to create cards"
+    echo "1. (Optional) Install MailHog for email testing: brew install mailhog && brew services start mailhog"
+    echo "2. Run 'npm run dev' to start the application"
+    echo "3. Open http://localhost:3000 in your browser"
+    echo "4. Register a new account or use test@example.com / password"
+    echo "5. Upload your files to create cards"
+    echo "6. Access MailHog at http://localhost:8025 to view password reset emails"
     echo ""
     echo "📚 For detailed information, see REPRODUCIBLE_SETUP.md"
     echo ""

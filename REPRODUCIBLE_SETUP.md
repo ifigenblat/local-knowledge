@@ -65,6 +65,14 @@ MONGODB_URI=mongodb://localhost:27017/local-knowledge
 JWT_SECRET=your-secret-key-here-make-this-secure-in-production
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000
+
+# Email Configuration (Local Development)
+MAILHOG_HOST=127.0.0.1
+MAILHOG_PORT=1025
+
+# For Gmail SMTP (Optional - for production):
+# SMTP_USER=your-email@gmail.com
+# SMTP_PASS=your-app-password
 ```
 
 #### **Frontend Proxy Configuration**
@@ -92,7 +100,28 @@ docker ps | grep mongodb
 docker start mongodb
 ```
 
-### **5. Verify Required Files**
+### **5. Email Setup (Optional - for Password Reset)**
+
+For password reset functionality, you can use MailHog for local email testing:
+
+#### **Install and Start MailHog (macOS)**
+```bash
+# Install MailHog via Homebrew
+brew install mailhog
+
+# Start MailHog as a service
+brew services start mailhog
+```
+
+#### **Access MailHog Web UI**
+- **Web Interface**: http://localhost:8025
+- **SMTP Server**: localhost:1025
+
+All password reset emails will appear in MailHog during development.
+
+**Note**: For production, configure Gmail SMTP or custom SMTP in `server/.env` (see Step 3).
+
+### **6. Verify Required Files**
 
 Ensure all critical files exist in the project:
 
@@ -109,6 +138,9 @@ Ensure all critical files exist in the project:
 - ✅ `client/src/pages/Dashboard.js` - Main dashboard page
 - ✅ `client/src/pages/Login.js` - Login page
 - ✅ `client/src/pages/Register.js` - Registration page
+- ✅ `client/src/pages/ForgotPassword.js` - Password reset request page
+- ✅ `client/src/pages/ResetPassword.js` - Password reset with token page
+- ✅ `client/src/pages/Settings.js` - Account settings and profile management
 - ✅ `client/src/pages/Upload.js` - File upload page
 - ✅ `client/src/pages/Cards.js` - Cards table view
 - ✅ `client/src/pages/View.js` - Cards grid view
@@ -116,7 +148,18 @@ Ensure all critical files exist in the project:
 
 All required files are included in the project. No additional file creation is needed.
 
-### **6. Start the Application**
+#### **Backend Utility Files**
+- ✅ `server/utils/contentProcessor.js` - File processing and card generation
+- ✅ `server/utils/email.js` - Email sending utility (MailHog/SMTP)
+- ✅ `server/middleware/auth.js` - JWT authentication middleware
+
+#### **Frontend Component Files**
+- ✅ `client/src/components/Layout.js` - Main layout with navigation
+- ✅ `client/src/components/Card.js` - Reusable card component
+- ✅ `client/src/components/UploadZone.js` - File upload component
+- ✅ `client/src/components/ImageZoomViewer.js` - Image viewing component
+
+### **7. Start the Application**
 
 #### **Option 1: Start Both Services (Recommended)**
 ```bash
@@ -133,7 +176,7 @@ cd server && npm run dev
 cd client && npm start
 ```
 
-### **7. Verify Setup**
+### **8. Verify Setup**
 
 #### **Check Services**
 ```bash
@@ -157,6 +200,7 @@ curl http://localhost:3000/api/health
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:5001
 - **Database**: MongoDB on localhost:27017
+- **MailHog** (Email Testing): http://localhost:8025
 
 ## 🔐 **Default Test Account**
 
@@ -247,9 +291,14 @@ Key dependencies:
 - bcryptjs
 - jsonwebtoken
 - multer
+- nodemailer (email sending)
 - cors
 - helmet
 - express-rate-limit
+- pdf-parse (PDF processing)
+- mammoth (Word document processing)
+- xlsx (Excel processing)
+- natural (NLP for tag generation)
 
 ### **Frontend Dependencies (client/package.json)**
 Key dependencies:
@@ -260,8 +309,9 @@ Key dependencies:
 - react-redux
 - axios
 - tailwindcss
-- framer-motion
-- lucide-react
+- react-dropzone (file uploads)
+- react-hot-toast (notifications)
+- lucide-react (icons)
 
 ## 🎉 **Success Indicators**
 
@@ -272,16 +322,22 @@ You'll know the setup is successful when:
 4. ✅ Proxy works (frontend can reach backend)
 5. ✅ You can register/login
 6. ✅ You can upload files and create cards
+7. ✅ Password reset emails appear in MailHog (http://localhost:8025)
+8. ✅ Settings page accessible for profile/password management
 
 ## 📝 **Notes**
 
 - This setup uses MongoDB in Docker for consistency
 - All passwords are properly hashed with bcryptjs
-- JWT tokens are used for authentication
-- File uploads are stored in `server/uploads/`
+- JWT tokens are used for authentication (7-day expiration)
+- File uploads are stored in `server/uploads/` (10MB max per file)
+- Supported file types: PDF, DOCX, DOC, TXT, MD, JSON, XLSX, XLS, PNG, JPG, JPEG, GIF
+- Email system: MailHog for development (http://localhost:8025), SMTP for production
+- Password reset tokens expire after 1 hour
 - All required files are included in the project - no manual file creation needed
 - **Enhanced Card Viewing**: Full-screen modal with scrollable content for long text
 - **No Overlapping Issues**: Fixed card viewing problems with improved modal structure
+- **Account Management**: Profile updates and password management via Settings page
 
 ---
 

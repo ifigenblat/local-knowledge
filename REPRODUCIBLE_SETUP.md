@@ -73,6 +73,11 @@ MAILHOG_PORT=1025
 # For Gmail SMTP (Optional - for production):
 # SMTP_USER=your-email@gmail.com
 # SMTP_PASS=your-app-password
+
+# AI Configuration (Optional - for AI-powered card regeneration)
+# OLLAMA_ENABLED=true
+# OLLAMA_API_URL=http://localhost:11434
+# OLLAMA_MODEL=llama2
 ```
 
 #### **Frontend Proxy Configuration**

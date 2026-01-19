@@ -76,17 +76,34 @@ export const deleteCardAsync = createAsyncThunk(
 // Async thunk for regenerating a card from snippet
 export const regenerateCardAsync = createAsyncThunk(
   'cards/regenerateCardAsync',
-  async (cardId, { rejectWithValue }) => {
+  async ({ cardId, useAI = false, comparisonMode = false, selectedVersion = null, comparisonData = null }, { rejectWithValue }) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`/api/cards/${cardId}/regenerate`, {}, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await axios.post(
+        `/api/cards/${cardId}/regenerate`,
+        { useAI, comparisonMode, selectedVersion, comparisonData },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.error || error.response?.data?.message || 'Failed to regenerate card');
+    }
+  }
+);
+
+// Async thunk for checking AI/Ollama status
+export const checkAIStatusAsync = createAsyncThunk(
+  'cards/checkAIStatusAsync',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await axios.get('/api/ai/status');
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || { enabled: false, available: false, error: 'Failed to check AI status' });
     }
   }
 );
@@ -105,6 +122,12 @@ const initialState = {
     total: 0,
     hasNext: false,
     hasPrev: false,
+  },
+  aiStatus: {
+    enabled: false,
+    available: false,
+    checking: false,
+    error: null,
   },
 };
 
@@ -225,6 +248,21 @@ const cardSlice = createSlice({
       .addCase(regenerateCardAsync.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+      })
+      .addCase(checkAIStatusAsync.pending, (state) => {
+        state.aiStatus.checking = true;
+      })
+      .addCase(checkAIStatusAsync.fulfilled, (state, action) => {
+        state.aiStatus.checking = false;
+        state.aiStatus.enabled = action.payload.enabled || false;
+        state.aiStatus.available = action.payload.available || false;
+        state.aiStatus.error = action.payload.error || null;
+      })
+      .addCase(checkAIStatusAsync.rejected, (state, action) => {
+        state.aiStatus.checking = false;
+        state.aiStatus.enabled = false;
+        state.aiStatus.available = false;
+        state.aiStatus.error = action.payload?.error || 'Failed to check AI status';
       });
   },
 });

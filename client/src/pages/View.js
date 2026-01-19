@@ -91,19 +91,27 @@ const View = () => {
     }
   };
 
-  const handleRegenerateCard = async () => {
-    if (!selectedCard) return;
-
-    try {
-      const regeneratedCard = await dispatch(regenerateCardAsync(selectedCard._id)).unwrap();
-      toast.success('Card regenerated successfully');
-      // Update the selected card to show regenerated content
+  const handleRegenerateCard = async (regeneratedCard) => {
+    // If regeneratedCard is provided (from CardDetailModal), use it directly
+    // Otherwise, if it's a boolean (useAI), regenerate
+    if (typeof regeneratedCard === 'object' && regeneratedCard !== null) {
+      // Card object passed from CardDetailModal
       setSelectedCard(regeneratedCard);
-      // Refresh cards list to reflect changes
       dispatch(fetchCards());
-    } catch (error) {
-      const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
-      toast.error(errorMessage);
+    } else {
+      // Legacy: useAI boolean parameter (shouldn't happen from CardDetailModal)
+      const useAI = regeneratedCard === true;
+      if (!selectedCard) return;
+
+      try {
+        const result = await dispatch(regenerateCardAsync({ cardId: selectedCard._id, useAI })).unwrap();
+        toast.success(`Card regenerated successfully ${useAI ? 'using AI' : 'using rule-based'}`);
+        setSelectedCard(result);
+        dispatch(fetchCards());
+      } catch (error) {
+        const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
+        toast.error(errorMessage);
+      }
     }
   };
 
@@ -172,35 +180,39 @@ const View = () => {
   const types = [...new Set(cards.map(card => card.type))];
   const categories = [...new Set(cards.map(card => card.category))];
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-        <span className="ml-2 text-gray-600">Loading cards...</span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-800">Error loading cards: {error}</p>
-      </div>
-    );
-  }
+  // Don't return early for loading - show loading inline like Dashboard does
+  // This prevents the entire page from being replaced when fetchCards() is called
 
   return (
     <div className="space-y-4 sm:space-y-6 pt-12 sm:pt-0">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
-          View Cards ({filteredCards.length})
-        </h1>
-        <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
-          Browse and view your learning cards
-        </p>
-      </div>
+      {/* Show loading inline instead of replacing entire page */}
+      {loading && (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">Loading cards...</p>
+        </div>
+      )}
+      
+      {/* Show error inline */}
+      {error && !loading && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+          <p className="text-red-800">Error loading cards: {error}</p>
+        </div>
+      )}
+      
+      {/* Only show content when not loading */}
+      {!loading && (
+        <>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+              View Cards ({filteredCards.length})
+            </h1>
+            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
+              Browse and view your learning cards
+            </p>
+          </div>
 
-      {/* Search and Filters */}
+          {/* Search and Filters */}
       <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           {/* Search */}
@@ -284,6 +296,8 @@ const View = () => {
             />
           ))}
         </div>
+      )}
+        </>
       )}
 
       {/* Card Detail Modal */}

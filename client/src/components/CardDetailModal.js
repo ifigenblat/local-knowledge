@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import { 
   BookOpen, 
   Target, 
@@ -12,8 +13,11 @@ import {
   File,
   ExternalLink,
   RefreshCw,
-  FolderPlus
+  FolderPlus,
+  AlertCircle
 } from 'lucide-react';
+import { checkAIStatusAsync, regenerateCardAsync } from '../store/slices/cardSlice';
+import { toast } from 'react-hot-toast';
 
 // Component to highlight snippet in source file content
 const SnippetHighlightedContent = ({ content, snippet }) => {
@@ -67,6 +71,8 @@ const CardDetailModal = ({
   onAddToCollection,
   loading = false 
 }) => {
+  const dispatch = useDispatch();
+  const { aiStatus, loading: cardsLoading } = useSelector(state => state.cards);
   const [provenanceExpanded, setProvenanceExpanded] = useState(false);
   const [showSourceFile, setShowSourceFile] = useState(false);
   const [sourceFileContent, setSourceFileContent] = useState(null);
@@ -74,21 +80,70 @@ const CardDetailModal = ({
   const [sourceFileError, setSourceFileError] = useState(null);
   const [previewHtmlUrl, setPreviewHtmlUrl] = useState(null);
   const iframeRef = useRef(null);
-
-  // Reset state when modal closes or card changes
+  // Use refs to persist comparison state across re-renders caused by card prop changes
+  const comparisonDataRef = useRef(null);
+  const showComparisonRef = useRef(false);
+  const [comparisonData, setComparisonData] = useState(null);
+  const [showComparison, setShowComparison] = useState(false);
+  const [loadingComparison, setLoadingComparison] = useState(false);
+  const timeoutRef = useRef(null);
+  const isRegeneratingRef = useRef(false); // Prevent double-clicks
+  
+  // Sync refs with state - but only update refs when state is truthy to prevent reset
   useEffect(() => {
-    if (!isOpen) {
+    if (comparisonData) {
+      comparisonDataRef.current = comparisonData;
+    }
+    if (showComparison) {
+      showComparisonRef.current = showComparison;
+    }
+    // Don't reset refs when state becomes false - let them persist
+  }, [comparisonData, showComparison]);
+
+  // Check AI status when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      dispatch(checkAIStatusAsync());
+    }
+  }, [isOpen, dispatch]);
+
+  // Track previous isOpen to detect when modal actually closes (not just re-renders)
+  const prevIsOpenRef = useRef(isOpen);
+  
+  // Reset state when modal closes (but NOT when card changes during comparison)
+  useEffect(() => {
+    const wasOpen = prevIsOpenRef.current;
+    const isNowOpen = isOpen;
+    prevIsOpenRef.current = isOpen;
+    
+    // Always reset when modal closes, regardless of comparison state
+    if (wasOpen && !isNowOpen) {
       setProvenanceExpanded(false);
       setShowSourceFile(false);
       setSourceFileContent(null);
+      setShowComparison(false);
+      setComparisonData(null);
+      setLoadingComparison(false);
+      // Reset refs
+      comparisonDataRef.current = null;
+      showComparisonRef.current = false;
+      isRegeneratingRef.current = false;
+      // Clear timeout if any
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
       if (previewHtmlUrl) {
         URL.revokeObjectURL(previewHtmlUrl);
         setPreviewHtmlUrl(null);
       }
     }
-  }, [isOpen, previewHtmlUrl]);
+    // Only reset when modal closes, not when card or other props change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, showComparison]);
 
-  // Clean up blob URLs on unmount
+
+  // Clean up blob URLs when previewHtmlUrl changes
   useEffect(() => {
     return () => {
       if (previewHtmlUrl) {
@@ -96,6 +151,17 @@ const CardDetailModal = ({
       }
     };
   }, [previewHtmlUrl]);
+
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, []);
+
 
   const getTypeIcon = (type) => {
     const icons = {
@@ -220,9 +286,22 @@ const CardDetailModal = ({
   };
 
   const handleClose = () => {
+    // Reset all state when closing, including comparison state
     setProvenanceExpanded(false);
     setShowSourceFile(false);
     setSourceFileContent(null);
+    setShowComparison(false);
+    setComparisonData(null);
+    setLoadingComparison(false);
+    // Reset refs
+    comparisonDataRef.current = null;
+    showComparisonRef.current = false;
+    isRegeneratingRef.current = false;
+    // Clear timeout if any
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
     if (previewHtmlUrl) {
       URL.revokeObjectURL(previewHtmlUrl);
       setPreviewHtmlUrl(null);
@@ -230,7 +309,10 @@ const CardDetailModal = ({
     onClose();
   };
 
-  if (!isOpen || !card) return null;
+  // Don't return null if we're in comparison mode - preserve the view even if card is temporarily null
+  // This prevents the blank page issue when card prop changes during comparison
+  if (!isOpen) return null;
+  if (!card && !showComparison) return null;
 
   const sourceFileId = card?.attachments?.[0]?.filename || card?.provenance?.source_file_id;
   const attachment = card?.attachments?.[0];
@@ -247,27 +329,31 @@ const CardDetailModal = ({
         </button>
         <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden flex flex-col max-h-full">
           {/* Modal Header - Fixed with Color */}
-          <div className={`${getTypeColorForHeader(card.type)} p-4 sm:p-6 flex-shrink-0`}>
+          <div className={`${getTypeColorForHeader(card?.type || 'concept')} p-4 sm:p-6 flex-shrink-0`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
                 <div className="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0">
-                  {getTypeIcon(card.type)}
+                  {getTypeIcon(card?.type || 'concept')}
                 </div>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-lg sm:text-2xl font-bold text-white truncate">
-                    {card.title}
+                    {card?.title || comparisonData?.ruleBased?.title || 'Loading...'}
                   </h2>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-white/80 text-xs sm:text-sm mt-1">
-                    <span className="capitalize">{card.type}</span>
-                    <span>•</span>
-                    <span>{card.category}</span>
-                    {card.metadata?.rating && (
+                    {card && (
                       <>
+                        <span className="capitalize">{card.type}</span>
                         <span>•</span>
-                        <div className="flex items-center space-x-1">
-                          <Star className="h-4 w-4 text-yellow-300 fill-current" />
-                          <span>{card.metadata.rating}/5</span>
-                        </div>
+                        <span>{card.category}</span>
+                        {card.metadata?.rating && (
+                          <>
+                            <span>•</span>
+                            <div className="flex items-center space-x-1">
+                              <Star className="h-4 w-4 text-yellow-300 fill-current" />
+                              <span>{card.metadata.rating}/5</span>
+                            </div>
+                          </>
+                        )}
                       </>
                     )}
                   </div>
@@ -284,7 +370,7 @@ const CardDetailModal = ({
                 <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white mb-2 sm:mb-3">Content</h3>
                 <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 sm:p-4">
                   <p className="text-sm sm:text-base text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
-                    {card.content}
+                    {card?.content || ''}
                   </p>
                 </div>
               </div>
@@ -401,29 +487,457 @@ const CardDetailModal = ({
                           </div>
                         )}
 
-                        {/* Regenerate Card Button - Show if snippet exists */}
-                        {card.provenance?.snippet && onRegenerate && (
-                          <div className="pt-3 border-t border-gray-300 dark:border-gray-600">
-                            <button
-                              onClick={onRegenerate}
-                              disabled={loading}
-                              className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 active:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors touch-manipulation"
-                              title="Regenerate this card from the original snippet"
-                            >
-                              {loading ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                  <span>Regenerating...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <RefreshCw className="h-4 w-4" />
-                                  <span>Regenerate Card</span>
-                                </>
+                        {/* Regenerate Card Buttons - Show if snippet exists */}
+                        {card.provenance?.snippet && onRegenerate && !showComparison && (
+                          <div className="pt-3 border-t border-gray-300 dark:border-gray-600 space-y-2">
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <button
+                                onClick={async () => {
+                                  if (!card) return;
+                                  try {
+                                    const result = await dispatch(regenerateCardAsync({ 
+                                      cardId: card?._id || comparisonData?.ruleBased?._id, 
+                                      useAI: false 
+                                    })).unwrap();
+                                    toast.success('Card regenerated successfully using rule-based');
+                                    onRegenerate(result);
+                                  } catch (error) {
+                                    const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
+                                    toast.error(errorMessage);
+                                  }
+                                }}
+                                disabled={loading}
+                                className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 active:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors touch-manipulation"
+                                title="Regenerate using rule-based algorithm (fast, deterministic)"
+                              >
+                                {loading ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                    <span className="text-xs sm:text-sm">Regenerating...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <RefreshCw className="h-4 w-4" />
+                                    <span className="text-xs sm:text-sm">Regenerate (Rule-based)</span>
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  // Prevent double-clicks
+                                  if (isRegeneratingRef.current) {
+                                    return;
+                                  }
+                                  
+                                  if (!card && !comparisonData?.ruleBased) {
+                                    toast.error('No card selected');
+                                    return;
+                                  }
+                                  if (!aiStatus.available) {
+                                    toast.error(aiStatus.error || 'AI is not available. Please check Ollama configuration.');
+                                    return;
+                                  }
+                                  try {
+                                    isRegeneratingRef.current = true;
+                                    setLoadingComparison(true);
+                                    
+                                    // Add timeout to prevent infinite loading
+                                    const timeoutId = setTimeout(() => {
+                                      if (loadingComparison) {
+                                        toast.error('AI regeneration is taking too long. Please try again.');
+                                        setLoadingComparison(false);
+                                        setShowComparison(false);
+                                        setComparisonData(null);
+                                        isRegeneratingRef.current = false;
+                                      }
+                                    }, 60000); // 60 second timeout
+                                    timeoutRef.current = timeoutId;
+                                    
+                                    const result = await dispatch(regenerateCardAsync({ 
+                                      cardId: card?._id || comparisonData?.ruleBased?._id, 
+                                      useAI: true,
+                                      comparisonMode: true
+                                    })).unwrap();
+                                    
+                                    if (timeoutRef.current) {
+                                      clearTimeout(timeoutRef.current);
+                                      timeoutRef.current = null;
+                                    }
+                                    
+                                    // Backend returns { comparison: true, ruleBased: {...}, ai: {...}, aiError: ... }
+                                    if (result && result.comparison === true && result.ruleBased) {
+                                      const comparisonDataToSet = {
+                                        ruleBased: result.ruleBased,
+                                        ai: result.ai || null,
+                                        aiError: result.aiError || null
+                                      };
+                                      
+                                      // Clear timeout
+                                      if (timeoutRef.current) {
+                                        clearTimeout(timeoutRef.current);
+                                        timeoutRef.current = null;
+                                      }
+                                      
+                                      // Set data first, then show the comparison view
+                                      setLoadingComparison(false);
+                                      // Update refs FIRST and synchronously to persist across re-renders
+                                      comparisonDataRef.current = comparisonDataToSet;
+                                      showComparisonRef.current = true;
+                                      // Then update state
+                                      setComparisonData(comparisonDataToSet);
+                                      setShowComparison(true);
+                                    } else {
+                                      if (timeoutRef.current) {
+                                        clearTimeout(timeoutRef.current);
+                                        timeoutRef.current = null;
+                                      }
+                                      // Fallback: no comparison, just apply directly
+                                      toast.success('Card regenerated successfully using AI');
+                                      onRegenerate(result);
+                                      setShowComparison(false);
+                                      setComparisonData(null);
+                                      setLoadingComparison(false);
+                                    }
+                                  } catch (error) {
+                                    console.error('AI regeneration error:', error);
+                                    if (timeoutRef.current) {
+                                      clearTimeout(timeoutRef.current);
+                                      timeoutRef.current = null;
+                                    }
+                                    const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
+                                    toast.error(errorMessage);
+                                    setShowComparison(false);
+                                    setComparisonData(null);
+                                    setLoadingComparison(false);
+                                  }
+                                }}
+                                disabled={loading || loadingComparison || !aiStatus.available}
+                                className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 ${
+                                  aiStatus.available 
+                                    ? 'bg-purple-500 hover:bg-purple-600 active:bg-purple-700' 
+                                    : 'bg-gray-400 cursor-not-allowed'
+                                } disabled:bg-gray-400 text-white rounded-lg transition-colors touch-manipulation`}
+                                title={
+                                  aiStatus.checking 
+                                    ? 'Checking AI availability...'
+                                    : aiStatus.available 
+                                    ? 'Regenerate using AI and compare with rule-based (requires Ollama)'
+                                    : aiStatus.error || 'AI (Ollama) is not available. See tooltip for details.'
+                                }
+                              >
+                                {loading || loadingComparison ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                    <span className="text-xs sm:text-sm">Generating comparison...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <RefreshCw className="h-4 w-4" />
+                                    <span className="text-xs sm:text-sm">Regenerate (AI)</span>
+                                    {!aiStatus.available && !aiStatus.checking && (
+                                      <AlertCircle className="h-3 w-3" />
+                                    )}
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                                Rule-based: Fast and deterministic. AI: Better quality, requires Ollama.
+                              </p>
+                              {aiStatus.checking && (
+                                <p className="text-xs text-blue-500 dark:text-blue-400 text-center">
+                                  Checking AI availability...
+                                </p>
                               )}
-                            </button>
+                              {!aiStatus.checking && !aiStatus.available && aiStatus.error && (
+                                <div className="text-xs text-amber-600 dark:text-amber-400 text-center p-2 bg-amber-50 dark:bg-amber-900/20 rounded">
+                                  <div className="flex items-center justify-center space-x-1">
+                                    <AlertCircle className="h-3 w-3" />
+                                    <span className="font-medium">AI Unavailable:</span>
+                                  </div>
+                                  <span className="block mt-1">{aiStatus.error}</span>
+                                </div>
+                              )}
+                              {!aiStatus.checking && aiStatus.available && (
+                                <p className="text-xs text-green-600 dark:text-green-400 text-center">
+                                  ✓ AI (Ollama) is available and ready
+                                </p>
+                              )}
+                            </div>
                           </div>
                         )}
+
+                        {/* Comparison View - Show when AI regeneration returns comparison data */}
+                        {/* Use ref value if state is false but ref is true (state was reset but ref persists) */}
+                        {(() => {
+                          const shouldShow = showComparison || showComparisonRef.current;
+                          const dataToUse = comparisonData || comparisonDataRef.current;
+                          
+                          // Restore state from ref if it was reset
+                          if (!showComparison && showComparisonRef.current) {
+                            setTimeout(() => {
+                              setShowComparison(true);
+                              if (comparisonDataRef.current && !comparisonData) {
+                                setComparisonData(comparisonDataRef.current);
+                              }
+                            }, 0);
+                          }
+                          
+                          if (!shouldShow || !dataToUse?.ruleBased) {
+                            return null;
+                          }
+                          
+                          return (
+                            <div className="pt-3 border-t border-gray-300 dark:border-gray-600">
+                            {loadingComparison ? (
+                              <div className="text-center py-8">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-4"></div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                  Generating both versions for comparison...
+                                </p>
+                              </div>
+                            ) : comparisonData && dataToUse.ruleBased ? (
+                              <div className="space-y-4">
+                                {(() => {
+                                  try {
+                                    if (!dataToUse.ruleBased) {
+                                      return <div className="text-red-500 p-4">Error: Rule-based data is missing</div>;
+                                    }
+                                    return (
+                                      <>
+                            <div className="text-center">
+                              <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+                                Compare Regeneration Results
+                              </h4>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Choose which version to apply to your card
+                              </p>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Rule-Based Version */}
+                              <div className="border-2 border-green-500 rounded-lg p-4 bg-green-50 dark:bg-green-900/10">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                    <h5 className="font-semibold text-green-700 dark:text-green-400">Rule-Based</h5>
+                                  </div>
+                                  <span className="text-xs bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-1 rounded">Fast</span>
+                                </div>
+                                
+                                <div className="space-y-2 text-sm">
+                                  <div>
+                                    <span className="font-medium text-gray-700 dark:text-gray-300">Title:</span>
+                                    <p className="text-gray-900 dark:text-white mt-1">{dataToUse.ruleBased?.title || 'N/A'}</p>
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700 dark:text-gray-300">Content:</span>
+                                    <p className="text-gray-900 dark:text-white mt-1 text-xs line-clamp-4">{dataToUse.ruleBased?.content || 'N/A'}</p>
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700 dark:text-gray-300">Type:</span>
+                                    <span className="ml-2 text-gray-900 dark:text-white capitalize">{dataToUse.ruleBased?.type || 'N/A'}</span>
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700 dark:text-gray-300">Category:</span>
+                                    <span className="ml-2 text-gray-900 dark:text-white">{dataToUse.ruleBased?.category || 'N/A'}</span>
+                                  </div>
+                                  {dataToUse.ruleBased?.tags && dataToUse.ruleBased.tags.length > 0 && (
+                                    <div>
+                                      <span className="font-medium text-gray-700 dark:text-gray-300">Tags:</span>
+                                      <div className="flex flex-wrap gap-1 mt-1">
+                                        {dataToUse.ruleBased.tags.map((tag, idx) => (
+                                          <span key={idx} className="text-xs bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-0.5 rounded">
+                                            {tag}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const result = await dispatch(regenerateCardAsync({ 
+                                        cardId: card?._id || comparisonData?.ruleBased?._id || dataToUse?.ruleBased?._id, 
+                                        useAI: true,
+                                        selectedVersion: 'ruleBased',
+                                        comparisonData: comparisonData || dataToUse // Pass the exact comparison data
+                                      })).unwrap();
+                                      
+                                      // Reset comparison state and refs FIRST, then update card
+                                      setShowComparison(false);
+                                      setComparisonData(null);
+                                      comparisonDataRef.current = null;
+                                      showComparisonRef.current = false;
+                                      setLoadingComparison(false);
+                                      
+                                      toast.success('Card updated with rule-based version');
+                                      
+                                      // Wait a tick to ensure state updates are processed, then update card
+                                      setTimeout(() => {
+                                        if (result && typeof result === 'object') {
+                                          onRegenerate(result);
+                                        }
+                                      }, 0);
+                                    } catch (error) {
+                                      const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to apply version';
+                                      toast.error(errorMessage);
+                                    }
+                                  }}
+                                  className="w-full mt-4 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors text-sm font-medium"
+                                >
+                                  Use This Version
+                                </button>
+                              </div>
+
+                              {/* AI Version */}
+                              <div className={`border-2 rounded-lg p-4 ${
+                                dataToUse.ai 
+                                  ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/10' 
+                                  : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800'
+                              }`}>
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="flex items-center space-x-2">
+                                    <div className={`w-3 h-3 rounded-full ${
+                                      dataToUse.ai ? 'bg-purple-500' : 'bg-gray-400'
+                                    }`}></div>
+                                    <h5 className={`font-semibold ${
+                                      dataToUse.ai 
+                                        ? 'text-purple-700 dark:text-purple-400' 
+                                        : 'text-gray-500 dark:text-gray-400'
+                                    }`}>AI-Generated</h5>
+                                  </div>
+                                  {dataToUse.ai && (
+                                    <span className="text-xs bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-2 py-1 rounded">Smart</span>
+                                  )}
+                                </div>
+                                
+                                {dataToUse.ai ? (
+                                  <div className="space-y-2 text-sm">
+                                    <div>
+                                      <span className="font-medium text-gray-700 dark:text-gray-300">Title:</span>
+                                      <p className="text-gray-900 dark:text-white mt-1">{dataToUse.ai?.title || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium text-gray-700 dark:text-gray-300">Content:</span>
+                                      <p className="text-gray-900 dark:text-white mt-1 text-xs line-clamp-4">{dataToUse.ai?.content || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium text-gray-700 dark:text-gray-300">Type:</span>
+                                      <span className="ml-2 text-gray-900 dark:text-white capitalize">{dataToUse.ai?.type || 'N/A'}</span>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium text-gray-700 dark:text-gray-300">Category:</span>
+                                      <span className="ml-2 text-gray-900 dark:text-white">{dataToUse.ai?.category || 'N/A'}</span>
+                                    </div>
+                                    {dataToUse.ai?.tags && dataToUse.ai.tags.length > 0 && (
+                                      <div>
+                                        <span className="font-medium text-gray-700 dark:text-gray-300">Tags:</span>
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {dataToUse.ai.tags.map((tag, idx) => (
+                                            <span key={idx} className="text-xs bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-2 py-0.5 rounded">
+                                              {tag}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="text-center py-4">
+                                    <AlertCircle className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                      {dataToUse.aiError || 'AI regeneration failed'}
+                                    </p>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                      Only rule-based version is available
+                                    </p>
+                                  </div>
+                                )}
+                                
+                                {dataToUse.ai ? (
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        const result = await dispatch(regenerateCardAsync({ 
+                                          cardId: card?._id || comparisonData?.ruleBased?._id || dataToUse?.ruleBased?._id, 
+                                          useAI: true,
+                                          selectedVersion: 'ai',
+                                          comparisonData: comparisonData || dataToUse // Pass the exact comparison data
+                                        })).unwrap();
+                                        
+                                        // Reset comparison state and refs FIRST, then update card
+                                        setShowComparison(false);
+                                        setComparisonData(null);
+                                        comparisonDataRef.current = null;
+                                        showComparisonRef.current = false;
+                                        setLoadingComparison(false);
+                                        
+                                        toast.success('Card updated with AI-generated version');
+                                        
+                                        // Wait a tick to ensure state updates are processed, then update card
+                                        setTimeout(() => {
+                                          if (result && typeof result === 'object') {
+                                            onRegenerate(result);
+                                          }
+                                        }, 0);
+                                      } catch (error) {
+                                        const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to apply version';
+                                        toast.error(errorMessage);
+                                      }
+                                    }}
+                                    className="w-full mt-4 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors text-sm font-medium"
+                                  >
+                                    Use This Version
+                                  </button>
+                                ) : (
+                                  <button
+                                    disabled
+                                    className="w-full mt-4 px-4 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed text-sm font-medium"
+                                  >
+                                    Not Available
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            
+                                        <button
+                                          onClick={() => {
+                                            setShowComparison(false);
+                                            setComparisonData(null);
+                                          }}
+                                          className="w-full px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-sm font-medium"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </>
+                                    );
+                                  } catch (error) {
+                                    console.error('Error rendering comparison view:', error);
+                                    return (
+                                      <div className="text-center py-8">
+                                        <p className="text-red-500 dark:text-red-400">Error displaying comparison. Please try again.</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{error.message}</p>
+                                      </div>
+                                    );
+                                  }
+                                })()}
+                              </div>
+                            ) : (
+                              <div className="text-center py-4">
+                                <p className="text-sm text-gray-500 dark:text-gray-400">No comparison data available</p>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                                  comparisonData: {comparisonData ? 'exists' : 'null'}, 
+                                  ruleBased: {comparisonData?.ruleBased ? 'exists' : 'null'}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          );
+                        })()}
 
                         {/* View Source File Button - Show if there's a file reference */}
                         {(card.attachments?.length > 0 || card.provenance?.source_file_id) && (
@@ -533,7 +1047,7 @@ const CardDetailModal = ({
                                           setSourceFileError('Authentication failed. Please refresh the page and try again.');
                                         }
                                       } catch (err) {
-                                        console.log('Could not access iframe content (same-origin policy):', err.message);
+                                        // Silently handle same-origin policy restrictions
                                       }
                                     }, 1000);
                                   }}

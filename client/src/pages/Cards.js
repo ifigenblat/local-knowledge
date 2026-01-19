@@ -174,19 +174,27 @@ const Cards = () => {
     }
   };
 
-  const handleRegenerateCard = async () => {
-    if (!selectedCard) return;
-
-    try {
-      const regeneratedCard = await dispatch(regenerateCardAsync(selectedCard._id)).unwrap();
-      toast.success('Card regenerated successfully');
-      // Update the selected card to show regenerated content
+  const handleRegenerateCard = async (regeneratedCard) => {
+    // If regeneratedCard is provided (from CardDetailModal), use it directly
+    // Otherwise, if it's a boolean (useAI), regenerate
+    if (typeof regeneratedCard === 'object' && regeneratedCard !== null) {
+      // Card object passed from CardDetailModal
       setSelectedCard(regeneratedCard);
-      // Refresh cards list to reflect changes
       dispatch(fetchCards());
-    } catch (error) {
-      const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
-      toast.error(errorMessage);
+    } else {
+      // Legacy: useAI boolean parameter (shouldn't happen from CardDetailModal)
+      const useAI = regeneratedCard === true;
+      if (!selectedCard) return;
+
+      try {
+        const result = await dispatch(regenerateCardAsync({ cardId: selectedCard._id, useAI })).unwrap();
+        toast.success(`Card regenerated successfully ${useAI ? 'using AI' : 'using rule-based'}`);
+        setSelectedCard(result);
+        dispatch(fetchCards());
+      } catch (error) {
+        const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
+        toast.error(errorMessage);
+      }
     }
   };
 
@@ -410,24 +418,29 @@ const Cards = () => {
     return colors[type] || 'bg-gray-500';
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-center text-red-500 p-8">
-        Error loading cards: {error}
-      </div>
-    );
-  }
+  // Don't return early for loading - show loading inline like Dashboard/View do
+  // This prevents the entire page from being replaced when fetchCards() is called
 
   return (
     <div className={`w-full px-4 pt-16 sm:pt-4 pb-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 ${selectedCardIds.size > 0 ? 'pb-24 sm:pb-24' : ''}`}>
+      {/* Show loading inline instead of replacing entire page */}
+      {loading && (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">Loading cards...</p>
+        </div>
+      )}
+      
+      {/* Show error inline */}
+      {error && !loading && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+          <p className="text-red-800">Error loading cards: {error}</p>
+        </div>
+      )}
+      
+      {/* Only show content when not loading */}
+      {!loading && (
+        <>
       <div className="mb-6 sm:mb-8">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
@@ -713,8 +726,10 @@ const Cards = () => {
           </div>
         </div>
       )}
+        </>
+      )}
 
-      {/* Bulk Add to Collection Modal */}
+      {/* Bulk Add to Collection Modal - Outside loading conditional so it stays visible */}
       {showBulkAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">

@@ -144,19 +144,27 @@ const Dashboard = () => {
     }
   };
 
-  const handleRegenerateCard = async () => {
-    if (!selectedCard) return;
-
-    try {
-      const regeneratedCard = await dispatch(regenerateCardAsync(selectedCard._id)).unwrap();
-      toast.success('Card regenerated successfully');
-      // Update the selected card to show regenerated content
+  const handleRegenerateCard = async (regeneratedCard) => {
+    // If regeneratedCard is provided (from CardDetailModal), use it directly
+    // Otherwise, if it's a boolean (useAI), regenerate
+    if (typeof regeneratedCard === 'object' && regeneratedCard !== null) {
+      // Card object passed from CardDetailModal
       setSelectedCard(regeneratedCard);
-      // Refresh cards list to reflect changes
       dispatch(fetchCards());
-    } catch (error) {
-      const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
-      toast.error(errorMessage);
+    } else {
+      // Legacy: useAI boolean parameter (shouldn't happen from CardDetailModal)
+      const useAI = regeneratedCard === true;
+      if (!selectedCard) return;
+
+      try {
+        const result = await dispatch(regenerateCardAsync({ cardId: selectedCard._id, useAI })).unwrap();
+        toast.success(`Card regenerated successfully ${useAI ? 'using AI' : 'using rule-based'}`);
+        setSelectedCard(result);
+        dispatch(fetchCards());
+      } catch (error) {
+        const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
+        toast.error(errorMessage);
+      }
     }
   };
 

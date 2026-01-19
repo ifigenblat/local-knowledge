@@ -3,6 +3,7 @@ const router = express.Router();
 const Card = require('../models/Card');
 const auth = require('../middleware/auth');
 const { createCardFromSection } = require('../utils/contentProcessor');
+const { regenerateCardHybrid, regenerateCardComparison, regenerateCardWithAI } = require('../utils/aiProcessor');
 
 // Get all cards for a user
 router.get('/', auth, async (req, res) => {
@@ -210,13 +211,99 @@ router.post('/:id/regenerate', auth, async (req, res) => {
     const sourceFileName = card.source || card.provenance.source_path || 'regenerated';
     const filePath = card.provenance.source_path || null;
 
-    // Regenerate card from snippet using createCardFromSection
-    const regeneratedCardData = await createCardFromSection(
+    // Get mode from request body (default to rule-based: false)
+    const useAI = req.body.useAI === true;
+    const comparisonMode = req.body.comparisonMode === true;
+    const selectedVersion = req.body.selectedVersion;
+
+    // If user selected a version from comparison, apply it FIRST (before comparison check)
+    if (selectedVersion) {
+      const versionToUse = selectedVersion; // 'ruleBased' or 'ai'
+      const comparisonData = req.body.comparisonData; // Use the exact comparison data from frontend
+      
+      let regeneratedCardData;
+      
+      // If comparison data is provided, use the exact values that were already shown to the user
+      if (comparisonData && comparisonData[versionToUse]) {
+        regeneratedCardData = comparisonData[versionToUse];
+      } else {
+        // Fallback: regenerate if comparison data not provided (shouldn't happen in normal flow)
+        console.warn('Comparison data not provided, regenerating...');
+        if (versionToUse === 'ai') {
+          try {
+            regeneratedCardData = await regenerateCardWithAI(snippet, sourceFileName);
+          } catch (aiError) {
+            console.warn('AI regeneration failed when applying selected version, falling back to rule-based:', aiError.message);
+            regeneratedCardData = await createCardFromSection(snippet, sourceFileName, filePath, 1, 1);
+          }
+        } else {
+          regeneratedCardData = await createCardFromSection(snippet, sourceFileName, filePath, 1, 1);
+        }
+      }
+      
+      if (!regeneratedCardData) {
+        return res.status(400).json({ error: 'Failed to regenerate card from snippet' });
+      }
+
+      // Update the existing card with selected version
+      card.title = regeneratedCardData.title;
+      card.content = regeneratedCardData.content;
+      card.type = regeneratedCardData.type;
+      card.category = regeneratedCardData.category;
+      card.tags = regeneratedCardData.tags;
+
+      // Preserve existing provenance but update snippet if it changed
+      if (regeneratedCardData.provenance) {
+        card.provenance = {
+          ...card.provenance,
+          ...regeneratedCardData.provenance,
+          location: card.provenance.location || regeneratedCardData.provenance.location,
+        };
+      }
+
+      // Update prompt version to indicate regeneration
+      if (card.provenance) {
+        const currentVersion = card.provenance.prompt_version || '1.0';
+        const versionParts = currentVersion.split('.');
+        const majorVersion = parseInt(versionParts[0]) || 1;
+        const minorVersion = parseInt(versionParts[1]) || 0;
+        card.provenance.prompt_version = `${majorVersion}.${minorVersion + 1}`;
+      }
+
+      await card.save();
+      return res.json(card);
+    }
+
+    // If comparison mode is requested and AI is enabled, return both versions
+    if (comparisonMode && useAI) {
+      const comparison = await regenerateCardComparison(snippet, sourceFileName, filePath);
+      
+      if (!comparison.ruleBased) {
+        return res.status(400).json({ error: 'Failed to regenerate card from snippet' });
+      }
+
+      // Return both versions for comparison (don't save yet)
+      return res.json({
+        comparison: true,
+        ruleBased: comparison.ruleBased,
+        ai: comparison.ai,
+        aiError: comparison.aiError,
+        originalCard: {
+          title: card.title,
+          content: card.content,
+          type: card.type,
+          category: card.category,
+          tags: card.tags,
+        },
+      });
+    }
+
+    // Standard regeneration (no comparison)
+    const regeneratedCardData = await regenerateCardHybrid(
       snippet,
       sourceFileName,
       filePath,
-      1,
-      1
+      useAI
     );
 
     if (!regeneratedCardData) {

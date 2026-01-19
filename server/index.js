@@ -76,6 +76,21 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
+// AI/Ollama status endpoint
+app.get('/api/ai/status', async (req, res) => {
+  try {
+    const { getOllamaStatus } = require('./utils/aiProcessor');
+    const status = await getOllamaStatus();
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ 
+      enabled: false, 
+      available: false, 
+      error: error.message || 'Error checking AI status' 
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

@@ -17,6 +17,8 @@ A full-stack React and Node.js application that automatically creates interactiv
 - **Collections**: Organize cards into collections
 - **Account Management**: Profile updates and password management
 - **Email Password Reset**: Secure password reset via email (MailHog for development, SMTP for production)
+- **AI-Powered Regeneration**: Optional AI-driven card regeneration using Ollama (local LLM) for improved quality
+- **Rule-Based Processing**: Fast, deterministic card generation as default option
 - **Responsive Design**: Modern UI with dark mode support
 - **Enhanced User Experience**: Improved card viewing with no overlapping issues
 
@@ -103,6 +105,11 @@ docker run -d --name mongodb -p 27017:27017 mongo:latest
    # For Gmail SMTP (Optional - for production):
    # SMTP_USER=your-email@gmail.com
    # SMTP_PASS=your-app-password
+   
+   # AI Configuration (Optional - for AI-powered card regeneration)
+   # OLLAMA_ENABLED=true
+   # OLLAMA_API_URL=http://localhost:11434
+   # OLLAMA_MODEL=llama2
    ```
 
 4. **Start the application**

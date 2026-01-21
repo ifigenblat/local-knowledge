@@ -25,9 +25,10 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
 │  │   Redux Store   │  │   API Client    │  │   Components    │ │
 │  │   - authSlice   │  │   (Axios)       │  │   - Layout      │ │
-│  │   - cardSlice   │  │   - JWT Auth    │  │   - Card        │ │
-│  │   - collection  │  │   - Error       │  │   - UploadZone  │ │
-│  │     Slice       │  │     Handling    │  │   - ImageViewer │ │
+│  │   - cardSlice   │  │   - JWT Auth    │  │   - CardDetail  │ │
+│  │   - collection  │  │   - Error       │  │     Modal       │ │
+│  │     Slice       │  │     Handling    │  │   - UploadZone  │ │
+│  │   - AI Status   │  │                 │  │   - ImageViewer │ │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                                 │
@@ -38,11 +39,12 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
 │  │   API Routes    │  │   Middleware    │  │   Utilities     │ │
 │  │   - /api/auth   │  │   - Auth (JWT)  │  │   - Content     │ │
 │  │   - /api/cards  │  │   - Rate Limit  │  │     Processor   │ │
-│  │   - /api/upload │  │   - Security    │  │   - Email       │ │
-│  │   - /api/       │  │     (Helmet)    │  │     (Nodemailer)│ │
-│  │     collections │  │                 │  │                 │ │
-│  │   - /api/       │  │                 │  │                 │ │
-│  │     preview     │  │                 │  │                 │ │
+│  │   - /api/upload │  │   - Security    │  │   - AI          │ │
+│  │   - /api/       │  │     (Helmet)    │  │     Processor   │ │
+│  │     collections │  │                 │  │     (Ollama)    │ │
+│  │   - /api/       │  │                 │  │   - Email       │ │
+│  │     preview     │  │                 │  │     (Nodemailer)│ │
+│  │   - /api/ai     │  │                 │  │                 │ │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                                 │
@@ -61,13 +63,14 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    EXTERNAL SERVICES                            │
-│  ┌─────────────────┐  ┌─────────────────┐                      │
-│  │   Email Service │  │   File Storage  │                      │
-│  │   - MailHog     │  │   - Local       │                      │
-│  │     (Dev)       │  │     uploads/    │                      │
-│  │   - Gmail SMTP  │  │     directory   │                      │
-│  │     (Prod)      │  │                 │                      │
-│  └─────────────────┘  └─────────────────┘                      │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
+│  │   Email Service │  │   File Storage  │  │   AI Service    │ │
+│  │   - MailHog     │  │   - Local       │  │   - Ollama      │ │
+│  │     (Dev)       │  │     uploads/    │  │     (Local)     │ │
+│  │   - Gmail SMTP  │  │     directory   │  │   - Optional    │ │
+│  │     (Prod)      │  │                 │  │     AI-powered  │ │
+│  └─────────────────┘  └─────────────────┘  │     generation  │ │
+│                                             └─────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -152,13 +155,18 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
 
 ### Components
 - **Layout** - Main app layout with sidebar navigation
-- **Card** - Reusable card display component
+- **CardDetailModal** - Shared modal component for card viewing, editing, and regeneration
+  - Displays card details, provenance, attachments
+  - Source file viewer with preview
+  - Edit and delete functionality
+  - Regenerate card (rule-based or AI-powered)
+  - AI comparison view (side-by-side rule-based vs AI)
 - **UploadZone** - Drag-and-drop file upload area
 - **ImageZoomViewer** - Image viewing with zoom functionality
 
 ### State Management (Redux)
 - **authSlice** - Authentication state (user, token, login/logout)
-- **cardSlice** - Card CRUD operations and state
+- **cardSlice** - Card CRUD operations, regeneration, and AI status
 - **collectionSlice** - Collection management and state
 
 ## Backend API Routes
@@ -178,6 +186,10 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
 - `POST /` - Create new card
 - `PUT /:id` - Update card
 - `DELETE /:id` - Delete card
+- `POST /:id/regenerate` - Regenerate card from provenance snippet
+  - Query params: `useAI` (boolean), `comparisonMode` (boolean)
+  - Body: `selectedVersion` ('ruleBased'|'ai'), `comparisonData` (object)
+  - Returns: Single card or comparison object with both versions
 
 ### Upload (`/api/upload`)
 - `POST /` - Upload and process file(s)
@@ -196,6 +208,10 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
   - Converts Office docs to HTML
   - Serves PDFs, images directly
   - Displays text files
+
+### AI (`/api/ai`)
+- `GET /status` - Check Ollama availability and configuration
+  - Returns: `{enabled, available, error}` status object
 
 ## Database Models
 
@@ -296,6 +312,60 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
 5. **Duplicate Detection** - Hash-based duplicate checking
 6. **Database Storage** - Save with provenance tracking
 
+## AI-Powered Card Regeneration
+
+### Ollama Integration
+- **Local AI** - Runs completely offline, no data sharing
+- **Model Support** - Configurable model (default: llama2)
+- **Hybrid Approach** - Rule-based default with optional AI enhancement
+- **Comparison Mode** - Generates both rule-based and AI versions side-by-side
+
+### Regeneration Flow
+```
+1. User clicks "Regenerate (AI)" on a card
+   ↓
+2. Frontend → Backend: POST /api/cards/:id/regenerate
+   - comparisonMode: true
+   ↓
+3. Backend: Extract provenance snippet from card
+   ↓
+4. AI Processor: Generate both versions
+   - Rule-based: contentProcessor.createCardFromSection()
+   - AI: aiProcessor.regenerateCardWithAI() (Ollama)
+   ↓
+5. Backend → Frontend: Comparison object
+   {
+     comparison: true,
+     ruleBased: {...},
+     ai: {...},
+     aiError: null/string
+   }
+   ↓
+6. Frontend: Display side-by-side comparison view
+   ↓
+7. User selects version → "Use This Version"
+   ↓
+8. Frontend → Backend: POST /api/cards/:id/regenerate
+   - selectedVersion: 'ruleBased' | 'ai'
+   - comparisonData: {...} (exact values to apply)
+   ↓
+9. Backend: Apply selected version directly (no re-generation)
+   ↓
+10. Backend → Frontend: Updated card
+    ↓
+11. Frontend: Update UI, close comparison view
+```
+
+### AI Processor (`server/utils/aiProcessor.js`)
+- **isOllamaAvailable()** - Checks Ollama service status
+- **regenerateCardWithAI()** - Generates card using Ollama API
+  - Truncates input to 1000 chars
+  - Limits output to 500 tokens
+  - 30-second timeout
+  - Temperature: 0.2, top_p: 0.8 for stability
+- **regenerateCardHybrid()** - Tries AI, falls back to rule-based
+- **regenerateCardComparison()** - Generates both versions for comparison
+
 ## Email System
 
 ### Email Utility (`server/utils/email.js`)
@@ -338,6 +408,10 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
 - **xlsx** - Excel file processing
 - **natural** - NLP for tag generation
 
+### AI Libraries
+- **Ollama** - Local LLM runtime (optional)
+- **Native Fetch API** - Ollama API communication
+
 ## Deployment Architecture
 
 ### Development
@@ -346,7 +420,8 @@ Local Machine:
 ├── Frontend (React) - localhost:3000
 ├── Backend (Express) - localhost:5001
 ├── MongoDB - Docker container (localhost:27017)
-└── MailHog - localhost:8025 (email testing)
+├── MailHog - localhost:8025 (email testing)
+└── Ollama - localhost:11434 (AI service, optional)
 ```
 
 ### Production (Recommended)
@@ -378,6 +453,11 @@ Cloud Infrastructure:
 - Filter and search functionality
 - Grid and table viewing modes
 - Provenance tracking
+- Card regeneration from provenance snippet
+  - Rule-based regeneration (deterministic)
+  - AI-powered regeneration (optional, Ollama)
+  - Side-by-side comparison view
+  - Version selection
 
 ### Collections
 - Organize cards into collections

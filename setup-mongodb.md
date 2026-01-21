@@ -45,30 +45,36 @@ MONGODB_URI=mongodb+srv://yourusername:yourpassword@cluster0.xxxxx.mongodb.net/l
 
 If you prefer to use a local MongoDB instance with Docker:
 
-### Option 1: Simple Setup (No Authentication)
+### Option 1 (Recommended / Matches this repo): With Authentication (Default)
 
 ```bash
-# Install Docker Desktop first, then run:
-docker run -d --name mongodb -p 27017:27017 mongo:latest
-
-# Start existing container
-docker start mongodb
-```
-
-**Connection String**: `mongodb://localhost:27017/local-knowledge`
-
-### Option 2: With Authentication (Recommended for Production)
-
-```bash
-# Create MongoDB container with authentication
+# Create MongoDB container with authentication (matches setup.sh / check-server.sh)
 docker run -d --name mongodb -p 27017:27017 \
   -e MONGO_INITDB_ROOT_USERNAME=localknowledge \
   -e MONGO_INITDB_ROOT_PASSWORD=myknowledge \
   -e MONGO_INITDB_DATABASE=local-knowledge \
   mongo:latest --auth
+
+# If the container already exists but is stopped:
+docker start mongodb
 ```
 
-**Connection String**: `mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge?authSource=admin`
+**Connection String (use in `server/.env`)**:
+
+`mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge?authSource=admin`
+
+### Option 2 (Alternative): Simple Setup (No Authentication)
+
+This is **not** what the repo scripts use by default. Only use this if you also change your `MONGODB_URI`.
+
+```bash
+# Create MongoDB container without authentication
+docker run -d --name mongodb -p 27017:27017 mongo:latest
+```
+
+**Connection String (use in `server/.env`)**:
+
+`mongodb://localhost:27017/local-knowledge`
 
 ### Docker Management Commands
 
@@ -94,11 +100,11 @@ docker ps | grep mongodb
 After starting MongoDB, verify it's working:
 
 ```bash
-# Connect to MongoDB (without auth)
-docker exec -it mongodb mongosh local-knowledge
-
-# Or with authentication
+# Connect with authentication (recommended)
 docker exec -it mongodb mongosh local-knowledge -u localknowledge -p myknowledge --authenticationDatabase admin
+
+# If using the no-auth option:
+# docker exec -it mongodb mongosh local-knowledge
 ```
 
 ## Troubleshooting
@@ -126,4 +132,4 @@ curl http://localhost:5001/api/health
 
 ---
 
-**Note**: For local development, Option 1 (no authentication) is simpler. For production or shared environments, use Option 2 (with authentication).
+**Note**: This repo’s default scripts (`setup.sh`, `check-server.sh`) use **authentication enabled** for local MongoDB. Keep your Docker setup and `MONGODB_URI` consistent to avoid connection issues.

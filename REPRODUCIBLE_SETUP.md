@@ -10,6 +10,7 @@ This guide ensures you can reproduce the working LocalKnowledge app consistently
 - **Docker**: For MongoDB container
 - **npm**: Package manager
 - **Operating System**: macOS, Linux, or Windows
+- **Ollama** (optional): For AI-powered card regeneration (local/offline)
 
 ## 📁 **Project Structure**
 
@@ -61,7 +62,7 @@ cd ..
 Create `server/.env`:
 ```env
 PORT=5001
-MONGODB_URI=mongodb://localhost:27017/local-knowledge
+MONGODB_URI=mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge?authSource=admin
 JWT_SECRET=your-secret-key-here-make-this-secure-in-production
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000
@@ -93,7 +94,11 @@ The `client/package.json` already includes:
 #### **Start MongoDB Container**
 ```bash
 # Start Docker Desktop first, then:
-docker run -d --name mongodb -p 27017:27017 mongo:latest
+docker run -d --name mongodb -p 27017:27017 \
+  -e MONGO_INITDB_ROOT_USERNAME=localknowledge \
+  -e MONGO_INITDB_ROOT_PASSWORD=myknowledge \
+  -e MONGO_INITDB_DATABASE=local-knowledge \
+  mongo:latest --auth
 
 # Verify container is running
 docker ps | grep mongodb
@@ -120,11 +125,38 @@ brew services start mailhog
 
 #### **Access MailHog Web UI**
 - **Web Interface**: http://localhost:8025
-- **SMTP Server**: localhost:1025
+- **SMTP Server**: 127.0.0.1:1025
 
 All password reset emails will appear in MailHog during development.
 
 **Note**: For production, configure Gmail SMTP or custom SMTP in `server/.env` (see Step 3).
+
+### **5.5 AI Setup (Optional - Ollama / Local AI)**
+
+This app supports **optional AI-powered card regeneration** using Ollama running locally (no data sharing).
+
+#### **Install Ollama**
+```bash
+# macOS
+brew install ollama
+```
+
+#### **Start Ollama**
+```bash
+ollama serve
+```
+
+#### **Install a model (recommended: llama2)**
+```bash
+ollama pull llama2
+```
+
+#### **Verify AI status endpoint**
+```bash
+curl http://localhost:5001/api/ai/status
+```
+
+See `AI_VERIFICATION.md` for detailed verification steps and troubleshooting.
 
 ### **6. Verify Required Files**
 
@@ -155,12 +187,13 @@ All required files are included in the project. No additional file creation is n
 
 #### **Backend Utility Files**
 - ✅ `server/utils/contentProcessor.js` - File processing and card generation
+- ✅ `server/utils/aiProcessor.js` - AI regeneration (Ollama) + status endpoint helper
 - ✅ `server/utils/email.js` - Email sending utility (MailHog/SMTP)
 - ✅ `server/middleware/auth.js` - JWT authentication middleware
 
 #### **Frontend Component Files**
 - ✅ `client/src/components/Layout.js` - Main layout with navigation
-- ✅ `client/src/components/Card.js` - Reusable card component
+- ✅ `client/src/components/CardDetailModal.js` - Shared card modal (view/edit/regenerate/AI compare)
 - ✅ `client/src/components/UploadZone.js` - File upload component
 - ✅ `client/src/components/ImageZoomViewer.js` - Image viewing component
 
@@ -206,6 +239,8 @@ curl http://localhost:3000/api/health
 - **Backend API**: http://localhost:5001
 - **Database**: MongoDB on localhost:27017
 - **MailHog** (Email Testing): http://localhost:8025
+- **AI Status**: http://localhost:5001/api/ai/status
+- **Ollama** (AI, optional): http://localhost:11434
 
 ## 🔐 **Default Test Account**
 
@@ -221,7 +256,7 @@ If you need a test account:
 npm run dev
 
 # Stop app
-pkill -f "npm run dev"
+npm run stop
 
 # Kill specific ports
 lsof -ti:3000 | xargs kill -9
@@ -261,7 +296,20 @@ cd client && npm start
 ### **MongoDB Connection Issues**
 - Docker not running: Start Docker Desktop
 - Container not running: `docker start mongodb`
-- Fresh container: `docker run -d --name mongodb -p 27017:27017 mongo:latest`
+- Fresh container (auth enabled):
+  ```bash
+  docker run -d --name mongodb -p 27017:27017 \
+    -e MONGO_INITDB_ROOT_USERNAME=localknowledge \
+    -e MONGO_INITDB_ROOT_PASSWORD=myknowledge \
+    -e MONGO_INITDB_DATABASE=local-knowledge \
+    mongo:latest --auth
+  ```
+
+### **AI (Ollama) Issues**
+- AI button disabled: Ensure `OLLAMA_ENABLED=true` in `server/.env` and restart the server
+- Ollama not reachable: Start Ollama with `ollama serve`
+- Model missing: `ollama pull llama2` (or whatever `OLLAMA_MODEL` is set to)
+- Verify: `curl http://localhost:5001/api/ai/status`
 
 ### **File Issues**
 - Verify all required files exist (see Step 5)

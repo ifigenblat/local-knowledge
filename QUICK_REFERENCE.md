@@ -7,6 +7,12 @@
 # Automated setup (recommended)
 npm run setup
 
+# Server health check / auto-fix (recommended if something feels broken)
+./check-server.sh
+
+# Full system API smoke test
+./test-system.sh
+
 # Manual setup
 npm run install-all
 npm run dev
@@ -57,7 +63,9 @@ npm run build
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:5001
 - **Health Check**: http://localhost:5001/api/health
+- **AI Status**: http://localhost:5001/api/ai/status
 - **MailHog** (Email Testing): http://localhost:8025
+- **Ollama** (AI, optional): http://localhost:11434
 
 ## 🔐 **Default Test Account**
 
@@ -76,7 +84,7 @@ npm run build
 - `server/routes/` - Auth, Cards, Upload, Collections, Preview routes
 - `client/src/store/slices/` - Redux slices (auth, cards, collections)
 - `client/src/pages/` - All page components (Dashboard, Cards, View, Upload, Collections, Settings, Auth pages)
-- `client/src/components/` - Reusable components (Layout, Card, UploadZone, ImageZoomViewer)
+- `client/src/components/` - Reusable components (Layout, CardDetailModal, UploadZone, ImageZoomViewer)
 
 ### **File Storage**
 - `server/uploads/` - Uploaded files storage
@@ -99,8 +107,12 @@ docker ps | grep mongodb
 # Start MongoDB if stopped
 docker start mongodb
 
-# Create new MongoDB container
-docker run -d --name mongodb -p 27017:27017 mongo:latest
+# Create new MongoDB container (matches setup.sh / check-server.sh)
+docker run -d --name mongodb -p 27017:27017 \
+  -e MONGO_INITDB_ROOT_USERNAME=localknowledge \
+  -e MONGO_INITDB_ROOT_PASSWORD=myknowledge \
+  -e MONGO_INITDB_DATABASE=local-knowledge \
+  mongo:latest --auth
 ```
 
 ### **Dependency Issues**
@@ -133,6 +145,7 @@ npm run install-all
 8. **Create collections**: Organize cards by topic
 9. **Manage account**: Update profile and password in Settings
 10. **Reset password**: Use "Forgot password?" link on login page
+11. **Regenerate a card (AI)**: Open a card → click **Regenerate (AI)** → compare both versions → **Use This Version**
 
 ## 🔧 **Development Commands**
 
@@ -152,7 +165,7 @@ docker exec -it mongodb mongosh local-knowledge
 ### **Backend (server/.env)**
 ```env
 PORT=5001
-MONGODB_URI=mongodb://localhost:27017/local-knowledge
+MONGODB_URI=mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge?authSource=admin
 JWT_SECRET=your-secret-key-here
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000
@@ -181,6 +194,8 @@ MAILHOG_PORT=1025
 ✅ Cards are created from uploads  
 ✅ Password reset emails appear in MailHog (http://localhost:8025)  
 ✅ Settings page accessible for profile/password management
+✅ AI status endpoint responds: `GET /api/ai/status`
+✅ AI compare view appears when clicking **Regenerate (AI)** (if enabled/available)
 
 ## 🔐 **Authentication Features**
 
@@ -196,6 +211,13 @@ MAILHOG_PORT=1025
 - **Development**: MailHog captures emails locally (http://localhost:8025)
 - **Production**: Configure Gmail SMTP or custom SMTP in `.env`
 - **Password Reset**: Emails sent with secure reset tokens (1 hour expiration)  
+
+## 🤖 **AI / Ollama**
+
+- **Docs**: `AI_VERIFICATION.md`
+- **Status endpoint**: `GET /api/ai/status`
+- **Enable AI**: set `OLLAMA_ENABLED=true` in `server/.env` and restart the server
+- **Comparison mode**: Clicking **Regenerate (AI)** shows a side-by-side comparison (rule-based vs AI). Click **Use This Version** to apply.
 
 ---
 

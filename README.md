@@ -17,8 +17,11 @@ A full-stack React and Node.js application that automatically creates interactiv
 - **Collections**: Organize cards into collections
 - **Account Management**: Profile updates and password management
 - **Email Password Reset**: Secure password reset via email (MailHog for development, SMTP for production)
-- **AI-Powered Regeneration**: Optional AI-driven card regeneration using Ollama (local LLM) for improved quality
+- **AI-Powered Card Regeneration**: Optional AI-driven card regeneration using Ollama (local LLM) with side-by-side comparison
 - **Rule-Based Processing**: Fast, deterministic card generation as default option
+- **Card Regeneration**: Regenerate cards from provenance snippets with rule-based or AI-powered options
+- **Comparison View**: Side-by-side comparison of rule-based vs AI-generated card versions
+- **Shared Card Modal**: Consistent card viewing, editing, and regeneration across all pages
 - **Responsive Design**: Modern UI with dark mode support
 - **Enhanced User Experience**: Improved card viewing with no overlapping issues
 
@@ -43,6 +46,7 @@ A full-stack React and Node.js application that automatically creates interactiv
 - **PDF-parse** and **Mammoth** for document processing
 - **Helmet** for security headers
 - **express-rate-limit** for rate limiting
+- **Ollama** (optional) for AI-powered card regeneration
 
 ### Frontend
 - **React 18** with hooks
@@ -61,6 +65,7 @@ A full-stack React and Node.js application that automatically creates interactiv
 - MongoDB (local or cloud)
 - npm or yarn
 - Docker (for MongoDB container)
+- Ollama (optional, for AI-powered card regeneration)
 
 ### 🐳 Docker Setup (Recommended)
 ```bash
@@ -107,10 +112,36 @@ docker run -d --name mongodb -p 27017:27017 mongo:latest
    # SMTP_PASS=your-app-password
    
    # AI Configuration (Optional - for AI-powered card regeneration)
+   # Uncomment and configure if you want to use Ollama for AI regeneration
    # OLLAMA_ENABLED=true
    # OLLAMA_API_URL=http://localhost:11434
    # OLLAMA_MODEL=llama2
    ```
+   
+   **Note**: For AI-powered regeneration, you need to install and run Ollama:
+   ```bash
+   # Install Ollama (macOS)
+   brew install ollama
+   
+   # Or visit https://ollama.ai for other platforms
+   
+   # Start Ollama service
+   ollama serve
+   
+   # Pull a model
+   # llama2 (recommended, stable, slower): ~3.8GB
+   ollama pull llama2
+   
+   # phi (faster, smaller, but less stable - may crash): ~1.6GB
+   # Note: phi was tested but found to be unstable, crashing on some content
+   # ollama pull phi
+   ```
+   
+   **Model Recommendations**:
+   - **llama2** (recommended): More stable, produces better results, slower (~10-30s per regeneration)
+   - **phi**: Faster (~3-8s per regeneration), but **not recommended** - may crash on complex content or resource constraints
+   
+   See [AI_VERIFICATION.md](AI_VERIFICATION.md) for detailed AI setup instructions.
 
 4. **Start the application**
    ```bash
@@ -143,17 +174,23 @@ local-knowledge/
 │   ├── routes/            # API routes
 │   ├── middleware/        # Express middleware
 │   ├── utils/             # Utility functions
+│   │   ├── contentProcessor.js  # Rule-based card generation
+│   │   ├── aiProcessor.js       # AI-powered card generation (Ollama)
+│   │   └── email.js             # Email utilities
 │   └── uploads/           # Uploaded files storage
 ├── client/                # Frontend React application
 │   ├── src/
 │   │   ├── components/    # Reusable components
+│   │   │   └── CardDetailModal.js  # Shared card modal component
 │   │   ├── pages/         # Page components
 │   │   ├── store/         # Redux store
 │   │   ├── utils/         # Utility functions
 │   │   └── styles/        # CSS and styling
 │   └── public/            # Static assets
 ├── package.json           # Root package.json
-└── README.md             # This file
+├── README.md             # This file
+├── AI_VERIFICATION.md     # AI setup and verification guide
+└── architecture-diagram.md  # System architecture documentation
 ```
 
 ## API Endpoints
@@ -175,6 +212,9 @@ local-knowledge/
 - `POST /api/cards` - Create a new card
 - `PUT /api/cards/:id` - Update a card
 - `DELETE /api/cards/:id` - Delete a card
+- `POST /api/cards/:id/regenerate` - Regenerate card from provenance snippet
+  - Body: `{ useAI: boolean, comparisonMode: boolean, selectedVersion: string, comparisonData: object }`
+  - Returns: Single card or comparison object with both rule-based and AI versions
 
 ### Upload
 - `POST /api/upload` - Upload and process a single file
@@ -193,6 +233,10 @@ local-knowledge/
 ### Preview
 - `GET /api/preview/:filename` - Preview uploaded file content
 
+### AI
+- `GET /api/ai/status` - Check Ollama availability and configuration
+  - Returns: `{ enabled: boolean, available: boolean, error: string | null }`
+
 ## Usage
 
 ### Uploading Content
@@ -209,12 +253,21 @@ local-knowledge/
 - **View Cards**: Browse all cards with search and filter options
   - **Grid View**: Visual card layout (View page)
   - **Table View**: Detailed list with sorting (Cards page)
-- **Full Card View**: Click any card to open a full-screen modal with complete content
+- **Full Card View**: Click any card to open a shared modal component with complete content
 - **Scrollable Content**: Long content is displayed in scrollable areas for better readability
 - **Create Cards**: Use "Add Card" button to manually create cards
 - **Edit Cards**: Click the edit button to modify card content, tags, and metadata
 - **Delete Cards**: Remove unwanted cards
 - **Filter & Search**: Filter by type, category, tags, or search by title/content
+- **Regenerate Cards**: Regenerate card content from its provenance snippet
+  - **Rule-Based**: Fast, deterministic regeneration (always available)
+  - **AI-Powered**: Optional AI regeneration using Ollama (if enabled)
+  - **Comparison View**: Side-by-side comparison of both versions to choose the best one
+- **Card Detail Modal**: Consistent interface across Dashboard, Cards, and View pages with:
+  - Full card details and provenance
+  - Source file viewer
+  - Edit and delete actions
+  - Regeneration options
 
 ### Creating Collections
 
@@ -233,13 +286,32 @@ local-knowledge/
 
 ## Content Processing
 
-The app uses natural language processing to:
+The app uses natural language processing and optional AI to:
 
 1. **Extract Text**: Parse various file formats
 2. **Analyze Content**: Identify key concepts and patterns
 3. **Categorize**: Determine card type and category
 4. **Generate Tags**: Extract relevant keywords
 5. **Create Cards**: Generate structured card content
+
+### Card Regeneration
+
+Cards can be regenerated from their provenance snippets using two methods:
+
+- **Rule-Based Regeneration** (Default):
+  - Fast and deterministic
+  - Always produces the same result for the same input
+  - No external dependencies required
+  - Uses pattern matching and keyword detection
+
+- **AI-Powered Regeneration** (Optional):
+  - Uses Ollama (local LLM) for enhanced card generation
+  - Runs completely offline - no data sharing
+  - Produces potentially improved content structure
+  - Requires Ollama to be installed and running
+  - Can generate different results for the same input
+
+**Comparison Mode**: When using AI regeneration, you can compare both versions side-by-side and choose which one to apply to your card.
 
 ## Customization
 
@@ -319,6 +391,20 @@ For support and questions, please:
 - **Responsive Design**: Works perfectly on all screen sizes
 - **Visual Indicators**: Clear hints when content is scrollable
 
+### AI-Powered Card Regeneration (Latest)
+- **Ollama Integration**: Local AI service for enhanced card generation
+- **Hybrid Approach**: Rule-based default with optional AI enhancement
+- **Comparison View**: Side-by-side comparison of rule-based vs AI-generated versions
+- **Version Selection**: Choose the best version from comparison
+- **Offline Operation**: Complete privacy - all AI processing runs locally
+- **Configurable**: Enable/disable AI features via environment variables
+
+### Shared Components (Latest)
+- **CardDetailModal**: Unified modal component used across all pages
+- **Consistent UX**: Same interface and functionality on Dashboard, Cards, and View pages
+- **State Management**: Improved state handling during card refresh
+- **Modal Persistence**: Modals stay visible during background data loading
+
 ### Technical Improvements
 - **Improved Modal Structure**: Fixed header with scrollable content area
 - **Better Performance**: Optimized rendering and scrolling
@@ -326,14 +412,18 @@ For support and questions, please:
 - **Mobile-Friendly**: Touch-friendly scrolling and responsive layout
 - **Email System**: Nodemailer integration with MailHog (dev) and SMTP (prod)
 - **Security**: Helmet.js, rate limiting, secure password reset tokens
+- **State Management**: Improved Redux state handling for AI features
 
 ## Roadmap
 
-- [ ] AI-powered content summarization
+- [x] AI-powered card regeneration (with Ollama)
+- [x] Side-by-side comparison view for regenerated cards
+- [x] Shared card modal component
 - [ ] Spaced repetition learning system
 - [ ] Collaborative features
 - [ ] Mobile app
 - [ ] Advanced analytics
 - [ ] Export to various formats
 - [ ] Integration with external learning platforms
+- [ ] Additional AI models support
 

@@ -39,6 +39,12 @@ print_status "Checking for server/.env file..."
 if [ ! -f "server/.env" ]; then
     print_error "server/.env file is missing"
     print_status "Creating server/.env file..."
+    # Check if Ollama is available to determine default AI config
+    OLLAMA_ENABLED_DEFAULT="false"
+    if command -v ollama &> /dev/null && curl -s http://localhost:11434/api/tags &> /dev/null 2>&1; then
+        OLLAMA_ENABLED_DEFAULT="true"
+    fi
+    
     cat > server/.env << EOF
 PORT=5001
 MONGODB_URI=mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge?authSource=admin
@@ -53,6 +59,12 @@ MAILHOG_PORT=1025
 # For Gmail SMTP (Optional - uncomment to use):
 # SMTP_USER=your-email@gmail.com
 # SMTP_PASS=your-app-password
+
+# AI Configuration (Optional - for AI-powered card regeneration)
+# Uncomment and configure if you want to use Ollama for AI regeneration
+OLLAMA_ENABLED=${OLLAMA_ENABLED_DEFAULT}
+OLLAMA_API_URL=http://localhost:11434
+OLLAMA_MODEL=llama2
 EOF
     print_success "Created server/.env file with secure JWT_SECRET"
 else
@@ -226,6 +238,7 @@ fi
 print_status "Checking utility files..."
 REQUIRED_UTILS=(
     "server/utils/contentProcessor.js"
+    "server/utils/aiProcessor.js"
     "server/utils/email.js"
 )
 
@@ -236,6 +249,75 @@ for util in "${REQUIRED_UTILS[@]}"; do
         print_error "$util is missing"
     fi
 done
+
+# 10. Check AI/Ollama configuration
+print_status "Checking AI (Ollama) configuration..."
+if grep -q "OLLAMA_ENABLED=true" server/.env 2>/dev/null; then
+    print_success "AI (Ollama) is enabled in .env"
+    
+    # Check if Ollama is installed
+    if command -v ollama &> /dev/null; then
+        print_success "Ollama is installed"
+        
+        # Check if Ollama service is running
+        if curl -s http://localhost:11434/api/tags &> /dev/null; then
+            print_success "Ollama service is running"
+            
+            # Check if model is installed
+            OLLAMA_MODEL=$(grep "OLLAMA_MODEL=" server/.env 2>/dev/null | cut -d'=' -f2 | tr -d '"' || echo "llama2")
+            if ollama list 2>/dev/null | grep -q "$OLLAMA_MODEL"; then
+                print_success "Ollama model '$OLLAMA_MODEL' is installed"
+            else
+                print_warning "Ollama model '$OLLAMA_MODEL' is not installed"
+                print_status "Run: ollama pull $OLLAMA_MODEL"
+            fi
+        else
+            print_warning "Ollama service is not running"
+            print_status "Start Ollama with: ollama serve"
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                print_status "Or: brew services start ollama"
+            fi
+        fi
+    else
+        print_warning "Ollama is not installed but enabled in .env"
+        print_status "Install Ollama from https://ollama.ai or run: brew install ollama"
+    fi
+else
+    print_status "AI (Ollama) is disabled (optional feature)"
+fi
+
+# 11. Check frontend components
+print_status "Checking frontend components..."
+if [ -f "client/src/components/CardDetailModal.js" ]; then
+    print_success "CardDetailModal.js exists"
+else
+    print_error "CardDetailModal.js is missing"
+fi
+
+# 12. Check if server is running and test endpoints
+print_status "Checking if server is running..."
+if curl -s http://localhost:5001/api/health &> /dev/null; then
+    print_success "Server is running"
+    
+    # Test AI status endpoint if enabled
+    if grep -q "OLLAMA_ENABLED=true" server/.env 2>/dev/null; then
+        print_status "Testing AI status endpoint..."
+        AI_STATUS=$(curl -s http://localhost:5001/api/ai/status 2>/dev/null)
+        if echo "$AI_STATUS" | grep -q "enabled"; then
+            if echo "$AI_STATUS" | grep -q '"available":true'; then
+                print_success "AI status endpoint: AI is available"
+            elif echo "$AI_STATUS" | grep -q '"enabled":true'; then
+                print_warning "AI status endpoint: AI is enabled but not available"
+            else
+                print_status "AI status endpoint: AI is disabled"
+            fi
+        else
+            print_warning "Could not test AI status endpoint"
+        fi
+    fi
+else
+    print_status "Server is not running (this is normal if you haven't started it yet)"
+fi
 
 # Summary
 echo ""
@@ -258,4 +340,26 @@ else
     echo "Please fix the errors above before starting the server."
     exit 1
 fi
+
+# AI-specific information
+if grep -q "OLLAMA_ENABLED=true" server/.env 2>/dev/null; then
+    echo ""
+    echo "🤖 AI Features:"
+    if command -v ollama &> /dev/null && curl -s http://localhost:11434/api/tags &> /dev/null; then
+        echo -e "   ${GREEN}✓ AI (Ollama) is configured and ready${NC}"
+        echo "   - Use 'Regenerate (AI)' button on cards to try AI regeneration"
+        echo "   - See AI_VERIFICATION.md for verification steps"
+    else
+        echo -e "   ${YELLOW}⚠ AI is enabled but Ollama is not running${NC}"
+        echo "   - Start Ollama: ollama serve"
+        echo "   - Or disable AI: Set OLLAMA_ENABLED=false in server/.env"
+    fi
+else
+    echo ""
+    echo "🤖 AI Features:"
+    echo "   - AI (Ollama) is disabled (optional feature)"
+    echo "   - To enable: Set OLLAMA_ENABLED=true in server/.env"
+    echo "   - See AI_VERIFICATION.md for setup instructions"
+fi
+
 echo ""

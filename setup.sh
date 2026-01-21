@@ -57,6 +57,81 @@ check_docker() {
     fi
 }
 
+# Check and install Ollama (optional, for AI features)
+check_and_install_ollama() {
+    print_status "Checking Ollama installation (optional, for AI-powered card regeneration)..."
+    
+    if command -v ollama &> /dev/null; then
+        OLLAMA_VERSION=$(ollama --version 2>/dev/null || echo "installed")
+        print_success "Ollama is installed: $OLLAMA_VERSION"
+        
+        # Check if Ollama service is running
+        if curl -s http://localhost:11434/api/tags &> /dev/null; then
+            print_success "Ollama service is running"
+            
+            # Check if llama2 model is installed
+            print_status "Checking for llama2 model..."
+            if ollama list 2>/dev/null | grep -q "llama2"; then
+                print_success "llama2 model is installed"
+            else
+                print_warning "llama2 model not found. Installing..."
+                if ollama pull llama2; then
+                    print_success "llama2 model installed successfully"
+                else
+                    print_warning "Failed to install llama2 model. You can install it later with: ollama pull llama2"
+                fi
+            fi
+        else
+            print_warning "Ollama service is not running. Starting Ollama..."
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                # macOS - try to start via brew service
+                if brew services list | grep -q ollama; then
+                    brew services start ollama
+                else
+                    print_warning "Please start Ollama manually: ollama serve"
+                    print_warning "Or install as a service: brew services install ollama"
+                fi
+            else
+                print_warning "Please start Ollama manually: ollama serve"
+            fi
+            sleep 3
+        fi
+    else
+        print_warning "Ollama is not installed (optional for AI features)"
+        print_status "Would you like to install Ollama? (y/n)"
+        read -r response
+        if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                print_status "Installing Ollama via Homebrew..."
+                if command -v brew &> /dev/null; then
+                    brew install ollama
+                    brew services start ollama
+                    print_success "Ollama installed and started"
+                    
+                    # Wait for Ollama to start
+                    sleep 5
+                    
+                    # Install llama2 model
+                    print_status "Installing llama2 model (this may take a few minutes)..."
+                    if ollama pull llama2; then
+                        print_success "llama2 model installed successfully"
+                    else
+                        print_warning "Failed to install llama2 model. You can install it later with: ollama pull llama2"
+                    fi
+                else
+                    print_error "Homebrew is not installed. Please install Ollama manually from https://ollama.ai"
+                fi
+            else
+                print_status "Please install Ollama manually from https://ollama.ai"
+                print_status "After installation, run: ollama pull llama2"
+            fi
+        else
+            print_warning "Skipping Ollama installation. AI features will not be available."
+            print_warning "You can install Ollama later and enable it in server/.env"
+        fi
+    fi
+}
+
 # Install dependencies
 install_dependencies() {
     print_status "Installing dependencies..."
@@ -128,6 +203,12 @@ create_env_files() {
     
     # Backend .env file
     if [ ! -f "server/.env" ]; then
+        # Check if Ollama is available to determine default AI config
+        OLLAMA_ENABLED_DEFAULT="false"
+        if command -v ollama &> /dev/null && curl -s http://localhost:11434/api/tags &> /dev/null; then
+            OLLAMA_ENABLED_DEFAULT="true"
+        fi
+        
         cat > server/.env << EOF
 PORT=5001
 MONGODB_URI=mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge?authSource=admin
@@ -142,10 +223,25 @@ MAILHOG_PORT=1025
 # For Gmail SMTP (Optional - uncomment to use):
 # SMTP_USER=your-email@gmail.com
 # SMTP_PASS=your-app-password
+
+# AI Configuration (Optional - for AI-powered card regeneration)
+# Uncomment and configure if you want to use Ollama for AI regeneration
+OLLAMA_ENABLED=${OLLAMA_ENABLED_DEFAULT}
+OLLAMA_API_URL=http://localhost:11434
+OLLAMA_MODEL=llama2
 EOF
         print_success "Created server/.env file"
+        if [ "$OLLAMA_ENABLED_DEFAULT" = "true" ]; then
+            print_success "AI (Ollama) is enabled in .env since Ollama is available"
+        else
+            print_warning "AI (Ollama) is disabled in .env. Enable it by setting OLLAMA_ENABLED=true"
+        fi
     else
         print_warning "server/.env already exists, skipping..."
+        print_status "Note: To enable AI features, add the following to server/.env:"
+        print_status "  OLLAMA_ENABLED=true"
+        print_status "  OLLAMA_API_URL=http://localhost:11434"
+        print_status "  OLLAMA_MODEL=llama2"
     fi
 }
 
@@ -158,8 +254,11 @@ verify_files() {
         "server/models/Card.js"
         "server/models/User.js"
         "server/utils/contentProcessor.js"
+        "server/utils/aiProcessor.js"
         "server/utils/email.js"
         "server/middleware/auth.js"
+        "server/routes/cards.js"
+        "client/src/components/CardDetailModal.js"
         "client/src/store/slices/authSlice.js"
         "client/src/store/slices/cardSlice.js"
         "client/src/store/slices/collectionSlice.js"
@@ -223,6 +322,21 @@ test_setup() {
         print_error "Proxy is not working"
     fi
     
+    # Test AI status endpoint if enabled
+    print_status "Testing AI status endpoint..."
+    AI_STATUS=$(curl -s http://localhost:5001/api/ai/status 2>/dev/null)
+    if echo "$AI_STATUS" | grep -q "enabled"; then
+        if echo "$AI_STATUS" | grep -q '"available":true'; then
+            print_success "AI (Ollama) is available"
+        elif echo "$AI_STATUS" | grep -q '"enabled":true'; then
+            print_warning "AI is enabled but Ollama is not available. Check Ollama installation."
+        else
+            print_status "AI is disabled (this is optional)"
+        fi
+    else
+        print_warning "Could not test AI status endpoint"
+    fi
+    
     # Stop the application
     print_status "Stopping test application..."
     kill $APP_PID 2>/dev/null
@@ -238,6 +352,7 @@ main() {
     check_docker
     install_dependencies
     setup_mongodb
+    check_and_install_ollama
     create_env_files
     verify_files
     test_setup
@@ -253,7 +368,28 @@ main() {
     echo "5. Upload your files to create cards"
     echo "6. Access MailHog at http://localhost:8025 to view password reset emails"
     echo ""
-    echo "📚 For detailed information, see REPRODUCIBLE_SETUP.md"
+    
+    # Check if AI is enabled and provide info
+    if grep -q "OLLAMA_ENABLED=true" server/.env 2>/dev/null; then
+        echo "🤖 AI Features:"
+        echo "   - AI-powered card regeneration is enabled"
+        echo "   - Use 'Regenerate (AI)' button on cards to try AI regeneration"
+        echo "   - Access Ollama at http://localhost:11434"
+        echo "   - See AI_VERIFICATION.md for verification steps"
+        echo ""
+    else
+        echo "🤖 AI Features (Optional):"
+        echo "   - AI-powered card regeneration is disabled"
+        echo "   - To enable: Set OLLAMA_ENABLED=true in server/.env"
+        echo "   - Ensure Ollama is installed and running"
+        echo "   - See AI_VERIFICATION.md for setup instructions"
+        echo ""
+    fi
+    
+    echo "📚 For detailed information, see:"
+    echo "   - REPRODUCIBLE_SETUP.md - Complete setup guide"
+    echo "   - AI_VERIFICATION.md - AI setup and verification"
+    echo "   - README.md - General documentation"
     echo ""
     print_success "Setup complete! 🚀"
 }

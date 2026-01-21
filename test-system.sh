@@ -356,6 +356,206 @@ test_upload() {
     fi
 }
 
+# Test AI Status
+test_ai_status() {
+    print_header "AI (Ollama) Status Tests"
+    
+    print_test "AI Status Endpoint"
+    AI_STATUS=$(curl -s "$BASE_URL/api/ai/status")
+    
+    if echo "$AI_STATUS" | grep -q "enabled\|available"; then
+        AI_ENABLED=$(echo "$AI_STATUS" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('enabled', False))" 2>/dev/null || echo "false")
+        AI_AVAILABLE=$(echo "$AI_STATUS" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('available', False))" 2>/dev/null || echo "false")
+        
+        if [ "$AI_ENABLED" = "True" ] || [ "$AI_ENABLED" = "true" ]; then
+            if [ "$AI_AVAILABLE" = "True" ] || [ "$AI_AVAILABLE" = "true" ]; then
+                print_success "AI (Ollama) is enabled and available"
+            else
+                print_info "AI is enabled but not available (Ollama may not be running)"
+            fi
+        else
+            print_info "AI is disabled (optional feature)"
+        fi
+    else
+        print_fail "AI status endpoint not working"
+    fi
+}
+
+# Test Card Regeneration
+test_card_regeneration() {
+    print_header "Card Regeneration Tests"
+    
+    if [ -z "$TOKEN" ]; then
+        print_fail "No authentication token available for regeneration tests"
+        return
+    fi
+    
+    # Create a card with provenance for regeneration testing
+    print_test "Create Card with Provenance for Regeneration"
+    CARD_WITH_PROVENANCE=$(curl -s -X POST "$BASE_URL/api/cards" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"title":"Regen Test Card","content":"Test content for regeneration","type":"concept","category":"General","tags":["test","regen"],"provenance":{"snippet":"This is a test snippet for card regeneration","location":"test.txt:1-10"}}')
+    
+    REGEN_CARD_ID=$(echo "$CARD_WITH_PROVENANCE" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('_id', data.get('id', '')))" 2>/dev/null || echo "")
+    
+    if [ -z "$REGEN_CARD_ID" ]; then
+        print_fail "Failed to create card for regeneration test"
+        return
+    fi
+    
+    print_success "Card created for regeneration: $REGEN_CARD_ID"
+    
+    # Test Rule-Based Regeneration
+    print_test "Rule-Based Card Regeneration"
+    REGEN_RESPONSE=$(curl -s -X POST "$BASE_URL/api/cards/$REGEN_CARD_ID/regenerate" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"useAI":false}')
+    
+    if echo "$REGEN_RESPONSE" | grep -q "_id\|title\|content"; then
+        print_success "Rule-based regeneration successful"
+    else
+        print_fail "Rule-based regeneration failed"
+    fi
+    
+    # Test AI Regeneration (if available)
+    AI_STATUS=$(curl -s "$BASE_URL/api/ai/status")
+    AI_AVAILABLE=$(echo "$AI_STATUS" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('available', False))" 2>/dev/null || echo "false")
+    
+    if [ "$AI_AVAILABLE" = "True" ] || [ "$AI_AVAILABLE" = "true" ]; then
+        print_test "AI Card Regeneration (Comparison Mode)"
+        AI_REGEN_RESPONSE=$(curl -s -X POST "$BASE_URL/api/cards/$REGEN_CARD_ID/regenerate" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"useAI":true,"comparisonMode":true}')
+        
+        if echo "$AI_REGEN_RESPONSE" | grep -q "comparison.*true\|ruleBased\|ai"; then
+            print_success "AI regeneration (comparison mode) successful"
+            
+            # Extract comparison data
+            HAS_RULEBASED=$(echo "$AI_REGEN_RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print('ruleBased' in data)" 2>/dev/null || echo "false")
+            HAS_AI=$(echo "$AI_REGEN_RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print('ai' in data)" 2>/dev/null || echo "false")
+            
+            if [ "$HAS_RULEBASED" = "True" ] || [ "$HAS_RULEBASED" = "true" ]; then
+                print_success "Comparison data includes rule-based version"
+            fi
+            
+            if [ "$HAS_AI" = "True" ] || [ "$HAS_AI" = "true" ]; then
+                print_success "Comparison data includes AI-generated version"
+            fi
+        else
+            print_fail "AI regeneration (comparison mode) failed"
+        fi
+    else
+        print_info "AI regeneration skipped (Ollama not available)"
+    fi
+    
+    # Clean up test card
+    if [ -n "$REGEN_CARD_ID" ]; then
+        curl -s -X DELETE "$BASE_URL/api/cards/$REGEN_CARD_ID" \
+            -H "Authorization: Bearer $TOKEN" > /dev/null
+    fi
+}
+
+# Integration Test: Card Creation -> Collection Creation -> Add Card to Collection
+test_card_collection_integration() {
+    print_header "Card-Collection Integration Test"
+    
+    if [ -z "$TOKEN" ]; then
+        print_fail "No authentication token available for integration test"
+        return
+    fi
+    
+    INTEGRATION_CARD_ID=""
+    INTEGRATION_COLLECTION_ID=""
+    
+    # Step 1: Create a card
+    print_test "Step 1: Create Card for Integration Test"
+    CREATE_CARD_RESPONSE=$(curl -s -X POST "$BASE_URL/api/cards" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"title":"Integration Test Card","content":"This card will be added to a collection","type":"concept","category":"General","tags":["integration","test"]}')
+    
+    INTEGRATION_CARD_ID=$(echo "$CREATE_CARD_RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('_id', data.get('id', '')))" 2>/dev/null || echo "")
+    
+    if [ -z "$INTEGRATION_CARD_ID" ]; then
+        print_fail "Failed to create card for integration test"
+        return
+    fi
+    
+    print_success "Card created: $INTEGRATION_CARD_ID"
+    
+    # Step 2: Create a collection
+    print_test "Step 2: Create Collection for Integration Test"
+    CREATE_COLLECTION_RESPONSE=$(curl -s -X POST "$BASE_URL/api/collections" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"name":"Integration Test Collection","description":"Collection for integration testing"}')
+    
+    INTEGRATION_COLLECTION_ID=$(echo "$CREATE_COLLECTION_RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('_id', data.get('id', '')))" 2>/dev/null || echo "")
+    
+    if [ -z "$INTEGRATION_COLLECTION_ID" ]; then
+        print_fail "Failed to create collection for integration test"
+        # Clean up card
+        curl -s -X DELETE "$BASE_URL/api/cards/$INTEGRATION_CARD_ID" \
+            -H "Authorization: Bearer $TOKEN" > /dev/null
+        return
+    fi
+    
+    print_success "Collection created: $INTEGRATION_COLLECTION_ID"
+    
+    # Step 3: Add card to collection
+    print_test "Step 3: Add Card to Collection"
+    ADD_CARD_RESPONSE=$(curl -s -X POST "$BASE_URL/api/collections/$INTEGRATION_COLLECTION_ID/cards" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{\"cardId\":\"$INTEGRATION_CARD_ID\"}")
+    
+    if echo "$ADD_CARD_RESPONSE" | grep -q "$INTEGRATION_CARD_ID\|cards"; then
+        print_success "Card added to collection successfully"
+    else
+        print_fail "Failed to add card to collection"
+        # Clean up
+        curl -s -X DELETE "$BASE_URL/api/collections/$INTEGRATION_COLLECTION_ID" \
+            -H "Authorization: Bearer $TOKEN" > /dev/null
+        curl -s -X DELETE "$BASE_URL/api/cards/$INTEGRATION_CARD_ID" \
+            -H "Authorization: Bearer $TOKEN" > /dev/null
+        return
+    fi
+    
+    # Step 4: Verify card is in collection
+    print_test "Step 4: Verify Card is in Collection"
+    GET_COLLECTION_RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" "$BASE_URL/api/collections/$INTEGRATION_COLLECTION_ID")
+    
+    CARD_IN_COLLECTION=$(echo "$GET_COLLECTION_RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); cards=data.get('cards', []); card_ids=[str(c.get('_id', c.get('id', c))) if isinstance(c, dict) else str(c) for c in cards]; print('$INTEGRATION_CARD_ID' in card_ids)" 2>/dev/null || echo "false")
+    
+    if [ "$CARD_IN_COLLECTION" = "True" ] || [ "$CARD_IN_COLLECTION" = "true" ]; then
+        print_success "Card verified in collection"
+    else
+        print_fail "Card not found in collection after adding"
+    fi
+    
+    # Step 5: Verify collection appears in card's collections (if applicable)
+    print_test "Step 5: Verify Collection Relationship"
+    GET_CARD_RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" "$BASE_URL/api/cards/$INTEGRATION_CARD_ID")
+    
+    if echo "$GET_CARD_RESPONSE" | grep -q "Integration Test Card"; then
+        print_success "Card relationship verified"
+    else
+        print_fail "Card relationship verification failed"
+    fi
+    
+    # Clean up: Delete collection and card
+    print_test "Cleanup: Removing Test Data"
+    curl -s -X DELETE "$BASE_URL/api/collections/$INTEGRATION_COLLECTION_ID" \
+        -H "Authorization: Bearer $TOKEN" > /dev/null
+    curl -s -X DELETE "$BASE_URL/api/cards/$INTEGRATION_CARD_ID" \
+        -H "Authorization: Bearer $TOKEN" > /dev/null
+    
+    print_success "Integration test completed and cleaned up"
+}
+
 # Print Summary
 print_summary() {
     print_header "Test Summary"
@@ -395,10 +595,13 @@ main() {
     test_authentication
     test_cards
     test_collections
+    test_card_collection_integration
     test_password_reset
     test_profile
     test_filters
     test_upload
+    test_ai_status
+    test_card_regeneration
     print_summary
 }
 

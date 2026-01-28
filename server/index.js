@@ -10,6 +10,8 @@ const cardRoutes = require('./routes/cards');
 const uploadRoutes = require('./routes/upload');
 const collectionRoutes = require('./routes/collections');
 const previewRoutes = require('./routes/preview');
+const roleRoutes = require('./routes/roles');
+const userRoutes = require('./routes/users');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -70,6 +72,8 @@ app.use('/api/cards', cardRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/collections', collectionRoutes);
 app.use('/api/preview', previewRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/users', userRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { updateProfile, resetPassword, loadUser } from '../store/slices/authSlice';
 import { toast } from 'react-hot-toast';
 import { User, Lock, Save, X, Eye, EyeOff } from 'lucide-react';
@@ -8,7 +8,8 @@ import { User, Lock, Save, X, Eye, EyeOff } from 'lucide-react';
 const Settings = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { user, loading } = useSelector((state) => state.auth);
+  const location = useLocation();
+  const { user, loading, mustChangePassword } = useSelector((state) => state.auth);
   
   // Profile form state
   const [profileData, setProfileData] = useState({
@@ -28,6 +29,13 @@ const Settings = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('profile'); // 'profile' or 'password'
+  
+  // Check if password change is required
+  useEffect(() => {
+    if (mustChangePassword || location.search.includes('changePassword=true')) {
+      setActiveTab('password');
+    }
+  }, [mustChangePassword, location]);
 
   // Initialize form with user data
   useEffect(() => {
@@ -97,6 +105,9 @@ const Settings = () => {
         newPassword: passwordData.newPassword
       })).unwrap();
       
+      // Reload user to update mustChangePassword flag
+      await dispatch(loadUser());
+      
       // Clear password form
       setPasswordData({
         currentPassword: '',
@@ -105,6 +116,13 @@ const Settings = () => {
       });
       
       toast.success('Password updated successfully');
+      
+      // If password change was required, redirect to dashboard
+      if (mustChangePassword) {
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1000);
+      }
     } catch (error) {
       toast.error(error || 'Failed to reset password');
     }
@@ -236,6 +254,24 @@ const Settings = () => {
       {/* Password Tab */}
       {activeTab === 'password' && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          {mustChangePassword && (
+            <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 rounded">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <Lock className="h-5 w-5 text-yellow-400" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                    Password Change Required
+                  </h3>
+                  <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                    <p>You must change your password before accessing other parts of the system.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
             Change Password
           </h2>

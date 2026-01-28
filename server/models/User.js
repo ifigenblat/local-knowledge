@@ -25,6 +25,15 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  role: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Role',
+    default: null // Will be set to 'user' role on first login/registration
+  },
+  mustChangePassword: {
+    type: Boolean,
+    default: false // Set to true for default admin user to force password change
+  },
   preferences: {
     theme: {
       type: String,

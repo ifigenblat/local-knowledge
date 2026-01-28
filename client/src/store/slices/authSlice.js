@@ -129,7 +129,8 @@ const initialState = {
   token: localStorage.getItem('token'),
   isAuthenticated: false,
   loading: false,
-  error: null
+  error: null,
+  mustChangePassword: false
 };
 
 const authSlice = createSlice({
@@ -159,6 +160,7 @@ const authSlice = createSlice({
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.token = action.payload.token;
+        state.mustChangePassword = action.payload.user?.mustChangePassword || false;
         state.error = null;
       })
       .addCase(login.rejected, (state, action) => {
@@ -197,6 +199,7 @@ const authSlice = createSlice({
         state.loading = false;
         state.isAuthenticated = true;
         state.user = action.payload;
+        state.mustChangePassword = action.payload?.mustChangePassword || false;
         state.error = null;
       })
       .addCase(loadUser.rejected, (state, action) => {
@@ -236,8 +239,12 @@ const authSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(resetPassword.fulfilled, (state) => {
+      .addCase(resetPassword.fulfilled, (state, action) => {
         state.loading = false;
+        state.mustChangePassword = false;
+        if (state.user) {
+          state.user.mustChangePassword = false;
+        }
         state.error = null;
       })
       .addCase(resetPassword.rejected, (state, action) => {

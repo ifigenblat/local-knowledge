@@ -130,6 +130,26 @@ docker logs mongodb
 curl http://localhost:5001/api/health
 ```
 
+## Default Superadmin User
+
+After running `setup.sh`, a default superadmin user is automatically created:
+
+- **Email**: `admin@localknowledge.local`
+- **Password**: `admin123`
+- **Role**: Super Administrator (immutable, full system access, cannot be modified or deleted)
+
+⚠️ **IMPORTANT**: Password change is **REQUIRED** on first login! You will be automatically redirected to the Settings page.
+
+To manually create the superadmin user:
+
+```bash
+# Create superadmin user (if roles are initialized)
+cd server
+node scripts/create-admin-user.js
+```
+
+**Note**: The superadmin role is immutable and cannot be modified, deleted, or deactivated. It provides full system access across all features.
+
 ---
 
-**Note**: This repo’s default scripts (`setup.sh`, `check-server.sh`) use **authentication enabled** for local MongoDB. Keep your Docker setup and `MONGODB_URI` consistent to avoid connection issues.
+**Note**: This repo's default scripts (`setup.sh`, `check-server.sh`) use **authentication enabled** for local MongoDB. Keep your Docker setup and `MONGODB_URI` consistent to avoid connection issues.

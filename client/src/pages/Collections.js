@@ -289,8 +289,10 @@ const Collections = () => {
   };
 
   const getAvailableCardTypes = () => {
-    const availableCards = getAvailableCards();
-    return [...new Set(availableCards.map(card => card.type))].sort();
+    // Define all valid card types (from Card model enum)
+    // Show all valid types in filter, not just types that exist in current cards
+    const validCardTypes = ['concept', 'action', 'quote', 'checklist', 'mindmap'];
+    return validCardTypes;
   };
 
   if (loading) {

@@ -67,8 +67,15 @@ npm run build
 - **MailHog** (Email Testing): http://localhost:8025
 - **Ollama** (AI, optional): http://localhost:11434
 
-## 🔐 **Default Test Account**
+## 🔐 **Default Accounts**
 
+### **Superadmin Account** (Created automatically)
+- **Email**: `admin@localknowledge.local`
+- **Password**: `admin123`
+- **Role**: Super Administrator (immutable, full access)
+- ⚠️ **Password change is REQUIRED on first login!**
+
+### **Test Account** (Create manually)
 - **Email**: `test@example.com`
 - **Password**: `password` (or `test123`, `123456`)
 

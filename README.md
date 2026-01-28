@@ -17,6 +17,8 @@ A full-stack React and Node.js application that automatically creates interactiv
 - **Collections**: Organize cards into collections
 - **Account Management**: Profile updates and password management
 - **Email Password Reset**: Secure password reset via email (MailHog for development, SMTP for production)
+- **Role-Based Access Control (RBAC)**: Admin and user roles with granular permissions
+- **Role Management**: Admins can create custom roles and define access levels
 - **AI-Powered Card Regeneration**: Optional AI-driven card regeneration using Ollama (local LLM) with side-by-side comparison
 - **Rule-Based Processing**: Fast, deterministic card generation as default option
 - **Card Regeneration**: Regenerate cards from provenance snippets with rule-based or AI-powered options
@@ -143,7 +145,24 @@ docker run -d --name mongodb -p 27017:27017 mongo:latest
    
    See [AI_VERIFICATION.md](AI_VERIFICATION.md) for detailed AI setup instructions.
 
-4. **Start the application**
+4. **Initialize roles and create superadmin user** (if using setup.sh, this is done automatically)
+   ```bash
+   # Initialize default roles (superadmin, admin, and user)
+   cd server
+   node scripts/init-roles.js
+   
+   # Create default superadmin user
+   node scripts/create-admin-user.js
+   cd ..
+   ```
+   
+   **Default Superadmin Credentials**:
+   - Email: `admin@localknowledge.local`
+   - Password: `admin123`
+   - Role: Super Administrator (immutable, full access)
+   - ⚠️ **IMPORTANT**: Password change is **required** on first login!
+
+5. **Start the application**
    ```bash
    # From the root directory
    npm run dev
@@ -203,6 +222,15 @@ local-knowledge/
 - `PUT /api/auth/password` - Change password (requires current password)
 - `POST /api/auth/forgot-password` - Request password reset email
 - `POST /api/auth/reset-password` - Reset password with token from email (token in request body)
+
+### Role Management (Admin Only)
+- `GET /api/roles` - Get all roles (requires `roles.view` permission)
+- `GET /api/roles/:id` - Get single role (requires `roles.view` permission)
+- `POST /api/roles` - Create new role (requires `roles.create` permission)
+- `PUT /api/roles/:id` - Update role (requires `roles.edit` permission)
+- `DELETE /api/roles/:id` - Delete role (requires `roles.delete` permission)
+- `POST /api/roles/:id/assign` - Assign role to user (requires `users.assignRoles` permission)
+- `GET /api/roles/:id/users` - Get users with role (requires `users.view` permission)
 
 ### Cards
 - `GET /api/cards` - Get all cards (with filters, pagination)
@@ -283,6 +311,30 @@ local-knowledge/
   - Change password (requires current password)
   - Reset password via email ("Forgot password?" on login page)
 - **Email Reset Flow**: Secure token-based password reset with 1-hour expiration
+
+### Role Management (Admin Only)
+
+- **Default Roles**: 
+  - **Admin**: Full system access (manage users, roles, all cards/collections)
+  - **User**: Standard access (own cards/collections only)
+- **Role Management Page**: Access via `/roles` (visible in sidebar for admins)
+  - View all roles and their permissions
+  - Create custom roles with granular permissions
+  - Edit role permissions
+  - Delete custom roles (system roles are protected)
+  - View users assigned to each role
+- **Permission System**: Granular permissions for:
+  - Cards (view, create, edit, delete, viewAll, editAll, deleteAll)
+  - Collections (view, create, edit, delete, viewAll, editAll, deleteAll)
+  - Users (view, create, edit, delete, assignRoles)
+  - Roles (view, create, edit, delete)
+  - System (viewSettings, editSettings, viewLogs)
+  - Upload (upload, uploadMultiple, viewAll)
+- **Default Superadmin User**: Created automatically during setup
+  - Email: `admin@localknowledge.local`
+  - Password: `admin123`
+  - Role: Super Administrator (immutable, full access)
+  - ⚠️ **Password change is REQUIRED on first login** - you will be redirected to Settings
 
 ## Content Processing
 

@@ -14,7 +14,9 @@ import {
   ExternalLink,
   RefreshCw,
   FolderPlus,
-  AlertCircle
+  AlertCircle,
+  Copy,
+  Check
 } from 'lucide-react';
 import { checkAIStatusAsync, regenerateCardAsync } from '../store/slices/cardSlice';
 import { toast } from 'react-hot-toast';
@@ -78,6 +80,7 @@ const CardDetailModal = ({
   const [sourceFileContent, setSourceFileContent] = useState(null);
   const [loadingSourceFile, setLoadingSourceFile] = useState(false);
   const [sourceFileError, setSourceFileError] = useState(null);
+  const [copiedCardId, setCopiedCardId] = useState(false);
   const [previewHtmlUrl, setPreviewHtmlUrl] = useState(null);
   const iframeRef = useRef(null);
   // Use refs to persist comparison state across re-renders caused by card prop changes
@@ -365,6 +368,54 @@ const CardDetailModal = ({
           {/* Modal Content - Scrollable */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             <div className="space-y-4 sm:space-y-6">
+              {/* Card ID - Shareable */}
+              {card?.cardId && (
+                <div>
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white mb-2 sm:mb-3">Card ID</h3>
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 sm:p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <code className="text-lg sm:text-xl font-mono font-bold text-blue-600 dark:text-blue-400">
+                          {card.cardId}
+                        </code>
+                        <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">
+                          (Share this ID to point to this card)
+                        </span>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(card.cardId);
+                            setCopiedCardId(true);
+                            toast.success('Card ID copied to clipboard!');
+                            setTimeout(() => setCopiedCardId(false), 2000);
+                          } catch (err) {
+                            toast.error('Failed to copy Card ID');
+                          }
+                        }}
+                        className="flex items-center gap-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors text-sm sm:text-base"
+                        title="Copy Card ID"
+                      >
+                        {copiedCardId ? (
+                          <>
+                            <Check className="h-4 w-4" />
+                            <span className="hidden sm:inline">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-4 w-4" />
+                            <span className="hidden sm:inline">Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 sm:hidden">
+                      Share this ID to point to this card
+                    </p>
+                  </div>
+                </div>
+              )}
+              
               {/* Content */}
               <div>
                 <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white mb-2 sm:mb-3">Content</h3>

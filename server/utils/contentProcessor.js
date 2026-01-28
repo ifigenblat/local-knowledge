@@ -9,7 +9,7 @@ const XLSX = require('xlsx');
 const tokenizer = new natural.WordTokenizer();
 
 /**
- * Validate that card content is meaningful (not empty, not just whitespace, not placeholder text)
+ * Validate that card content is meaningful (not empty, not just whitespace, not placeholder text, not just dates)
  */
 function hasMeaningfulContent(content, minLength = 10) {
   if (!content || typeof content !== 'string') {
@@ -35,17 +35,76 @@ function hasMeaningfulContent(content, minLength = 10) {
     return false;
   }
   
+  // Check if it's just a date (common date patterns)
+  const datePatterns = [
+    /^\d{1,2}\/\d{1,2}\/\d{2,4}$/,  // MM/DD/YYYY or M/D/YY
+    /^\d{4}-\d{2}-\d{2}$/,          // YYYY-MM-DD
+    /^[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}$/,  // Dec 22, 2025
+    /^[A-Z][a-z]{2}\s+\d{1,2}\s+\d{4}$/,   // Dec 22 2025
+    /^\d{1,2}\s+[A-Z][a-z]{2}\s+\d{4}$/,  // 22 Dec 2025
+    /^[A-Z][a-z]+\s+\d{1,2},\s+\d{4}$/,    // December 22, 2025
+    /^\d{1,2}\.\d{1,2}\.\d{2,4}$/,         // DD.MM.YYYY
+  ];
+  
+  if (datePatterns.some(pattern => pattern.test(trimmed))) {
+    return false;
+  }
+  
+  // Check if it's just a time (HH:MM or HH:MM:SS)
+  if (/^\d{1,2}:\d{2}(:\d{2})?(\s*(AM|PM|am|pm))?$/.test(trimmed)) {
+    return false;
+  }
+  
+  // Check if it's just numbers or mostly numbers
+  const numbersOnly = trimmed.replace(/[\s\.,\-]/g, '');
+  if (numbersOnly.length > trimmed.length * 0.7 && /^\d+$/.test(numbersOnly)) {
+    return false;
+  }
+  
+  // Check if it's just a single word or very short phrase (less than 3 words with meaningful content)
+  const words = trimmed.split(/\s+/).filter(w => w.length > 0);
+  if (words.length <= 2 && trimmed.length < 20) {
+    // Allow if it's a meaningful phrase, but reject if it's just a date/time/number
+    const isDateOrTime = datePatterns.some(pattern => pattern.test(trimmed)) || 
+                        /^\d{1,2}:\d{2}/.test(trimmed);
+    if (isDateOrTime) {
+      return false;
+    }
+  }
+  
   return true;
 }
 
 // Keywords that indicate different card types
 const CARD_TYPE_KEYWORDS = {
   concept: ['concept', 'definition', 'theory', 'principle', 'framework', 'model'],
-  action: ['action', 'step', 'process', 'procedure', 'method', 'technique', 'strategy'],
+  action: [
+    'action', 'actions', 'action item', 'action items',
+    'step', 'steps', 'next step', 'next steps',
+    'process', 'procedure', 'method', 'technique', 'strategy',
+    'task', 'tasks', 'todo', 'to do', 'to-do',
+    'follow up', 'follow-up', 'followup',
+    'implement', 'implementation', 'execute', 'execution',
+    'deliverable', 'deliverables', 'milestone', 'milestones',
+    'assign', 'assignment', 'owner', 'responsible',
+    'deadline', 'due date', 'timeline', 'schedule'
+  ],
   quote: ['quote', 'saying', 'proverb', 'wisdom', 'insight'],
   checklist: ['checklist', 'list', 'items', 'tasks', 'requirements', 'criteria'],
   mindmap: ['relationship', 'connection', 'link', 'network', 'system']
 };
+
+// Common imperative verbs that indicate action items
+const ACTION_VERBS = [
+  'create', 'build', 'develop', 'design', 'implement', 'deploy',
+  'write', 'draft', 'prepare', 'complete', 'finish', 'finalize',
+  'review', 'approve', 'submit', 'send', 'share', 'publish',
+  'update', 'modify', 'change', 'fix', 'resolve', 'address',
+  'schedule', 'organize', 'plan', 'coordinate', 'manage',
+  'contact', 'reach out', 'follow up', 'meet', 'discuss',
+  'analyze', 'evaluate', 'assess', 'investigate', 'research',
+  'install', 'configure', 'setup', 'test', 'verify', 'validate'
+];
 
 // Comprehensive category keywords for better categorization
 const CATEGORY_KEYWORDS = {
@@ -608,16 +667,81 @@ function determineCardType(text) {
   }
   
   // Check for specific patterns
+  
+  // Checklist patterns (bullet points, numbered lists)
   if (text.match(/^\s*[-•*]\s+/m)) {
     typeScores.checklist += 2;
   }
   
+  // Quote patterns (quotation marks)
   if (text.match(/["""].*["""]/)) {
     typeScores.quote += 3;
   }
   
-  if (text.match(/\b(step|process|procedure)\b/i)) {
+  // Action item patterns - check for common action item prefixes
+  const actionItemPatterns = [
+    /^(action|actions|action item|action items):\s*/i,
+    /^(to do|todo|to-do):\s*/i,
+    /^(task|tasks):\s*/i,
+    /^(next step|next steps):\s*/i,
+    /^(follow up|follow-up|followup):\s*/i,
+    /^(deliverable|deliverables):\s*/i,
+    /^(milestone|milestones):\s*/i,
+    /^(assign|assignment|owner|responsible):\s*/i,
+    /^(deadline|due date|timeline):\s*/i
+  ];
+  
+  for (const pattern of actionItemPatterns) {
+    if (text.match(pattern)) {
+      typeScores.action += 3; // Strong indicator
+    }
+  }
+  
+  // Check for imperative verbs at the start of sentences/lines
+  const lines = text.split(/\n|\./);
+  let imperativeCount = 0;
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (trimmedLine.length > 0) {
+      const firstWord = trimmedLine.split(/\s+/)[0].toLowerCase();
+      if (ACTION_VERBS.includes(firstWord)) {
+        imperativeCount++;
+      }
+    }
+  }
+  if (imperativeCount > 0) {
+    typeScores.action += Math.min(imperativeCount, 3); // Cap at 3 points
+  }
+  
+  // Check for numbered action items (e.g., "1. Do this", "2. Do that")
+  if (text.match(/^\s*\d+[\.\)]\s+[A-Z]/m)) {
     typeScores.action += 2;
+  }
+  
+  // Check for action verbs in the text (not just at start)
+  for (const verb of ACTION_VERBS) {
+    const regex = new RegExp(`\\b${verb}\\b`, 'gi');
+    const matches = text.match(regex);
+    if (matches) {
+      typeScores.action += Math.min(matches.length, 2); // Cap at 2 points per verb type
+    }
+  }
+  
+  // Check for common action phrases
+  const actionPhrases = [
+    /\bneed to\b/i,
+    /\bshould\b/i,
+    /\bmust\b/i,
+    /\bwill\b/i,
+    /\bgoing to\b/i,
+    /\bplan to\b/i,
+    /\bintend to\b/i
+  ];
+  
+  for (const phrase of actionPhrases) {
+    if (text.match(phrase)) {
+      typeScores.action += 1;
+    }
   }
   
   // Return the type with highest score, default to concept

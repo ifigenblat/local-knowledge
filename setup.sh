@@ -246,12 +246,46 @@ EOF
 }
 
 # Verify required files exist
+# Initialize roles and create admin user
+initialize_roles_and_admin() {
+    print_status "Initializing roles and creating admin user..."
+    
+    cd server
+    
+    # Initialize roles
+    print_status "Creating default roles (admin and user)..."
+    if node scripts/init-roles.js; then
+        print_success "Roles initialized successfully"
+    else
+        print_error "Failed to initialize roles"
+        cd ..
+        return 1
+    fi
+    
+    # Create admin user
+    print_status "Creating default admin user..."
+    if node scripts/create-admin-user.js; then
+        print_success "Admin user created successfully"
+        print_warning "Default superadmin credentials:"
+        print_warning "  Email: admin@localknowledge.local"
+        print_warning "  Password: admin123"
+        print_warning "  Role: Super Administrator (immutable, full access)"
+        print_warning "  ⚠️  Password change is REQUIRED on first login!"
+    else
+        print_warning "Failed to create admin user (may already exist)"
+    fi
+    
+    cd ..
+}
+
 verify_files() {
     print_status "Verifying required files..."
     
     REQUIRED_FILES=(
         "server/models/Collection.js"
         "server/models/Card.js"
+        "server/models/Role.js"
+        "server/models/User.js"
         "server/models/User.js"
         "server/utils/contentProcessor.js"
         "server/utils/aiProcessor.js"
@@ -355,6 +389,7 @@ main() {
     check_and_install_ollama
     create_env_files
     verify_files
+    initialize_roles_and_admin
     test_setup
     
     echo ""
@@ -364,9 +399,14 @@ main() {
     echo "1. (Optional) Install MailHog for email testing: brew install mailhog && brew services start mailhog"
     echo "2. Run 'npm run dev' to start the application"
     echo "3. Open http://localhost:3000 in your browser"
-    echo "4. Register a new account or use test@example.com / password"
-    echo "5. Upload your files to create cards"
-    echo "6. Access MailHog at http://localhost:8025 to view password reset emails"
+    echo "4. Login with default superadmin account:"
+    echo "   Email: admin@localknowledge.local"
+    echo "   Password: admin123"
+    echo "   Role: Super Administrator (immutable, full access)"
+    echo "   ⚠️  IMPORTANT: Password change is REQUIRED on first login!"
+    echo "5. Or register a new account (will get 'user' role)"
+    echo "6. Upload your files to create cards"
+    echo "7. Access MailHog at http://localhost:8025 to view password reset emails"
     echo ""
     
     # Check if AI is enabled and provide info

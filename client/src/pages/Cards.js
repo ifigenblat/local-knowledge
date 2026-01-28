@@ -371,7 +371,10 @@ const Cards = () => {
   };
 
   const categories = [...new Set(cards.map(card => card.category))];
-  const types = [...new Set(cards.map(card => card.type))];
+  // Define all valid card types (from Card model enum)
+  const validCardTypes = ['concept', 'action', 'quote', 'checklist', 'mindmap'];
+  // Show all valid types in filter, not just types that exist in current cards
+  const types = validCardTypes;
 
   const getTypeIcon = (type) => {
     const icons = {

@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
+const Role = require('../models/Role');
 const auth = require('../middleware/auth');
 const { sendPasswordResetEmail } = require('../utils/email');
 
@@ -18,11 +19,30 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'User already exists' });
     }
 
+    // Check if this is the first user - assign admin role
+    const userCount = await User.countDocuments();
+    let defaultRole = null;
+    
+    if (userCount === 0) {
+      // First user gets admin role
+      const adminRole = await Role.findOne({ name: 'admin' });
+      if (adminRole) {
+        defaultRole = adminRole._id;
+      }
+    } else {
+      // Subsequent users get user role
+      const userRole = await Role.findOne({ name: 'user' });
+      if (userRole) {
+        defaultRole = userRole._id;
+      }
+    }
+
     // Create new user
     user = new User({
       name,
       email,
-      password
+      password,
+      role: defaultRole
     });
 
     // Hash password
@@ -31,11 +51,19 @@ router.post('/register', async (req, res) => {
 
     await user.save();
 
+    // Populate role for JWT
+    await user.populate('role');
+
     // Create JWT token
     const payload = {
       id: user.id,
       name: user.name,
-      email: user.email
+      email: user.email,
+      role: user.role ? {
+        id: user.role._id,
+        name: user.role.name,
+        displayName: user.role.displayName
+      } : null
     };
 
     jwt.sign(
@@ -70,11 +98,29 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid credentials' });
     }
 
+    // Assign default 'user' role if no role exists
+    if (!user.role) {
+      const userRole = await Role.findOne({ name: 'user' });
+      if (userRole) {
+        user.role = userRole._id;
+        await user.save();
+      }
+    }
+
+    // Populate role for JWT
+    await user.populate('role');
+
     // Create JWT token
     const payload = {
       id: user.id,
       name: user.name,
-      email: user.email
+      email: user.email,
+      mustChangePassword: user.mustChangePassword || false,
+      role: user.role ? {
+        id: user.role._id,
+        name: user.role.name,
+        displayName: user.role.displayName
+      } : null
     };
 
     jwt.sign(
@@ -95,7 +141,7 @@ router.post('/login', async (req, res) => {
 // Get current user
 router.get('/me', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findById(req.user.id).select('-password').populate('role');
     res.json(user);
   } catch (error) {
     console.error('Get user error:', error);
@@ -170,10 +216,18 @@ router.put('/password', auth, async (req, res) => {
     // Hash new password
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(newPassword, salt);
+    
+    // Clear mustChangePassword flag if it was set
+    if (user.mustChangePassword) {
+      user.mustChangePassword = false;
+    }
 
     await user.save();
 
-    res.json({ message: 'Password updated successfully' });
+    res.json({ 
+      message: 'Password updated successfully',
+      mustChangePassword: false
+    });
   } catch (error) {
     console.error('Reset password error:', error);
     res.status(500).json({ error: 'Server error' });

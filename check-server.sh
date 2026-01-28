@@ -216,6 +216,7 @@ REQUIRED_MODELS=(
     "server/models/User.js"
     "server/models/Card.js"
     "server/models/Collection.js"
+    "server/models/Role.js"
 )
 
 for model in "${REQUIRED_MODELS[@]}"; do
@@ -232,6 +233,12 @@ if [ -f "server/middleware/auth.js" ]; then
     print_success "server/middleware/auth.js exists"
 else
     print_error "server/middleware/auth.js is missing"
+fi
+
+if [ -f "server/middleware/authorize.js" ]; then
+    print_success "server/middleware/authorize.js exists"
+else
+    print_error "server/middleware/authorize.js is missing"
 fi
 
 # 9. Check utility files
@@ -294,7 +301,83 @@ else
     print_error "CardDetailModal.js is missing"
 fi
 
-# 12. Check if server is running and test endpoints
+# 12. Check roles and admin user initialization
+print_status "Checking roles and admin user..."
+if [ -f "server/scripts/init-roles.js" ] && [ -f "server/scripts/create-admin-user.js" ]; then
+    print_success "Role initialization scripts exist"
+    
+    # Check if MongoDB is accessible
+    if docker ps --format "{{.Names}}" | grep -q "^mongodb$"; then
+        print_status "Verifying roles and admin user in database..."
+        cd server
+        if node -e "
+            const mongoose = require('mongoose');
+            require('dotenv').config({ path: '.env' });
+            mongoose.connect(process.env.MONGODB_URI).then(async () => {
+                const Role = require('./models/Role');
+                const User = require('./models/User');
+                const superAdminRole = await Role.findOne({ name: 'superadmin' });
+                const adminRole = await Role.findOne({ name: 'admin' });
+                const userRole = await Role.findOne({ name: 'user' });
+                const superAdminUser = superAdminRole ? await User.findOne({ role: superAdminRole._id }) : null;
+                
+                if (superAdminRole && adminRole && userRole) {
+                    console.log('ROLES_OK');
+                } else {
+                    console.log('ROLES_MISSING');
+                }
+                
+                if (superAdminUser) {
+                    console.log('ADMIN_USER_EXISTS');
+                } else {
+                    console.log('ADMIN_USER_MISSING');
+                }
+                
+                process.exit(0);
+            }).catch(err => {
+                console.log('DB_CHECK_FAILED');
+                process.exit(1);
+            });
+        " 2>/dev/null | grep -q "ROLES_OK"; then
+            print_success "Default roles (superadmin, admin, user) exist in database"
+        else
+            print_warning "Default roles not found. Run: cd server && node scripts/init-roles.js"
+        fi
+        
+        if node -e "
+            const mongoose = require('mongoose');
+            require('dotenv').config({ path: '.env' });
+            mongoose.connect(process.env.MONGODB_URI).then(async () => {
+                const Role = require('./models/Role');
+                const User = require('./models/User');
+                const superAdminRole = await Role.findOne({ name: 'superadmin' });
+                const superAdminUser = superAdminRole ? await User.findOne({ role: superAdminRole._id }) : null;
+                
+                if (superAdminUser) {
+                    console.log('ADMIN_USER_EXISTS');
+                } else {
+                    console.log('ADMIN_USER_MISSING');
+                }
+                
+                process.exit(0);
+            }).catch(err => {
+                console.log('DB_CHECK_FAILED');
+                process.exit(1);
+            });
+        " 2>/dev/null | grep -q "ADMIN_USER_EXISTS"; then
+            print_success "Superadmin user exists in database"
+        else
+            print_warning "Superadmin user not found. Run: cd server && node scripts/create-admin-user.js"
+        fi
+        cd ..
+    else
+        print_warning "MongoDB not running - cannot verify roles and admin user"
+    fi
+else
+    print_warning "Role initialization scripts not found"
+fi
+
+# 13. Check if server is running and test endpoints
 print_status "Checking if server is running..."
 if curl -s http://localhost:5001/api/health &> /dev/null; then
     print_success "Server is running"

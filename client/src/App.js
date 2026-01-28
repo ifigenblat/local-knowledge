@@ -12,11 +12,13 @@ import Cards from './pages/Cards';
 import View from './pages/View';
 import Collections from './pages/Collections';
 import Settings from './pages/Settings';
+import Roles from './pages/Roles';
+import Users from './pages/Users';
 import Layout from './components/Layout';
 
 const App = () => {
   const dispatch = useDispatch();
-  const { isAuthenticated, loading, token } = useSelector(state => state.auth);
+  const { isAuthenticated, loading, token, mustChangePassword } = useSelector(state => state.auth);
 
   // Load user on app initialization if token exists
   useEffect(() => {
@@ -52,13 +54,15 @@ const App = () => {
         <Route path="/reset-password" element={!isAuthenticated ? <ResetPassword /> : <Navigate to="/dashboard" />} />
         
         {/* Protected routes */}
-        <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
-        <Route path="/dashboard" element={isAuthenticated ? <Layout><Dashboard /></Layout> : <Navigate to="/login" />} />
-        <Route path="/upload" element={isAuthenticated ? <Layout><Upload /></Layout> : <Navigate to="/login" />} />
-        <Route path="/cards" element={isAuthenticated ? <Layout><Cards /></Layout> : <Navigate to="/login" />} />
-        <Route path="/view" element={isAuthenticated ? <Layout><View /></Layout> : <Navigate to="/login" />} />
-        <Route path="/collections" element={isAuthenticated ? <Layout><Collections /></Layout> : <Navigate to="/login" />} />
+        <Route path="/" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Navigate to="/dashboard" />) : <Navigate to="/login" />} />
+        <Route path="/dashboard" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Dashboard /></Layout>) : <Navigate to="/login" />} />
+        <Route path="/upload" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Upload /></Layout>) : <Navigate to="/login" />} />
+        <Route path="/cards" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Cards /></Layout>) : <Navigate to="/login" />} />
+        <Route path="/view" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><View /></Layout>) : <Navigate to="/login" />} />
+        <Route path="/collections" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Collections /></Layout>) : <Navigate to="/login" />} />
         <Route path="/settings" element={isAuthenticated ? <Layout><Settings /></Layout> : <Navigate to="/login" />} />
+        <Route path="/roles" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Roles /></Layout>) : <Navigate to="/login" />} />
+        <Route path="/users" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Users /></Layout>) : <Navigate to="/login" />} />
       </Routes>
     </Router>
   );

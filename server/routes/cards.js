@@ -45,13 +45,31 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// Get a single card
+// Get a single card by ID or cardId (for sharing)
 router.get('/:id', auth, async (req, res) => {
   try {
-    const card = await Card.findOne({ _id: req.params.id, user: req.user.id });
-    if (!card) {
-      return res.status(404).json({ error: 'Card not found' });
+    const { id } = req.params;
+    
+    // Check if it's a cardId (6 character alphanumeric) or MongoDB ObjectId (24 chars)
+    let card;
+    if (id.length === 6 && /^[A-Z0-9]+$/.test(id.toUpperCase())) {
+      // It's a cardId - allow access if card is public or belongs to user
+      card = await Card.findByCardId(id.toUpperCase());
+      if (!card) {
+        return res.status(404).json({ error: 'Card not found' });
+      }
+      // Check if user owns the card or if it's public
+      if (card.user.toString() !== req.user.id && !card.isPublic) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    } else {
+      // It's a MongoDB ObjectId - require ownership
+      card = await Card.findOne({ _id: id, user: req.user.id });
+      if (!card) {
+        return res.status(404).json({ error: 'Card not found' });
+      }
     }
+    
     res.json(card);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });

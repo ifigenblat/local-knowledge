@@ -158,6 +158,46 @@ curl http://localhost:5001/api/ai/status
 
 See `AI_VERIFICATION.md` for detailed verification steps and troubleshooting.
 
+### **5.6 Role-Based Access Control (RBAC) Setup**
+
+The application includes a role-based access control system with default roles:
+
+#### **Default Roles**
+- **Super Administrator**: Full system access, immutable role (cannot be modified or deleted). Assigned to default admin user.
+- **Administrator**: Full system access (manage users, roles, all cards/collections)
+- **User**: Standard access (own cards/collections only)
+
+#### **Default Superadmin User**
+After running `setup.sh`, a default superadmin user is automatically created:
+
+- **Email**: `admin@localknowledge.local`
+- **Password**: `admin123`
+- **Role**: Super Administrator (immutable, full access)
+
+⚠️ **IMPORTANT**: Password change is **REQUIRED** on first login! You will be automatically redirected to the Settings page to change your password.
+
+#### **Manual Role/Superadmin Setup**
+If you need to manually initialize roles or create a superadmin user:
+
+```bash
+# Initialize default roles (superadmin, admin, and user)
+cd server
+node scripts/init-roles.js
+
+# Create default superadmin user
+node scripts/create-admin-user.js
+```
+
+**Note**: The superadmin role is immutable and cannot be modified, deleted, or deactivated through the UI.
+
+#### **Role Management**
+- Admins can access the **Roles** page (`/roles`) to:
+  - View all roles
+  - Create custom roles with granular permissions
+  - Edit role permissions
+  - Assign roles to users
+  - View users assigned to each role
+
 ### **6. Verify Required Files**
 
 Ensure all critical files exist in the project:
@@ -166,6 +206,7 @@ Ensure all critical files exist in the project:
 - ✅ `server/models/Collection.js` - Collection model
 - ✅ `server/models/Card.js` - Card model  
 - ✅ `server/models/User.js` - User model
+- ✅ `server/models/Role.js` - Role model (for RBAC)
 
 #### **Frontend Files**
 - ✅ `client/src/store/slices/authSlice.js` - Authentication slice
@@ -190,6 +231,9 @@ All required files are included in the project. No additional file creation is n
 - ✅ `server/utils/aiProcessor.js` - AI regeneration (Ollama) + status endpoint helper
 - ✅ `server/utils/email.js` - Email sending utility (MailHog/SMTP)
 - ✅ `server/middleware/auth.js` - JWT authentication middleware
+- ✅ `server/middleware/authorize.js` - Role-based authorization middleware
+- ✅ `server/scripts/init-roles.js` - Initialize default roles (admin, user)
+- ✅ `server/scripts/create-admin-user.js` - Create default admin user
 
 #### **Frontend Component Files**
 - ✅ `client/src/components/Layout.js` - Main layout with navigation
@@ -373,10 +417,13 @@ You'll know the setup is successful when:
 2. ✅ Frontend loads at http://localhost:3000
 3. ✅ Backend responds at http://localhost:5001/api/health
 4. ✅ Proxy works (frontend can reach backend)
-5. ✅ You can register/login
-6. ✅ You can upload files and create cards
-7. ✅ Password reset emails appear in MailHog (http://localhost:8025)
-8. ✅ Settings page accessible for profile/password management
+5. ✅ Default roles (superadmin, admin, user) are initialized
+6. ✅ Default superadmin user is created (email: admin@localknowledge.local)
+7. ✅ You can login with admin account or register new users
+8. ✅ You can upload files and create cards
+9. ✅ Password reset emails appear in MailHog (http://localhost:8025)
+10. ✅ Settings page accessible for profile/password management
+11. ✅ Admins can access Roles page to manage roles and permissions
 
 ## 📝 **Notes**
 
@@ -391,6 +438,9 @@ You'll know the setup is successful when:
 - **Enhanced Card Viewing**: Full-screen modal with scrollable content for long text
 - **No Overlapping Issues**: Fixed card viewing problems with improved modal structure
 - **Account Management**: Profile updates and password management via Settings page
+- **Role-Based Access Control**: Default superadmin, admin, and user roles with granular permissions
+- **Default Superadmin User**: Created automatically during setup (password change required on first login!)
+- **Immutable Superadmin Role**: Full access role that cannot be modified or deleted
 
 ---
 

@@ -177,7 +177,10 @@ const View = () => {
   });
 
   // Get unique types and categories for filters
-  const types = [...new Set(cards.map(card => card.type))];
+  // Define all valid card types (from Card model enum)
+  const validCardTypes = ['concept', 'action', 'quote', 'checklist', 'mindmap'];
+  // Show all valid types in filter, not just types that exist in current cards
+  const types = validCardTypes;
   const categories = [...new Set(cards.map(card => card.category))];
 
   // Don't return early for loading - show loading inline like Dashboard does

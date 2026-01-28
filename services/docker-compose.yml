@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: localknowledge-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: local-knowledge
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - microservices-network
+
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "5001:5001"
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/local-knowledge
+      USER_SERVICE_URL: http://user-service:5002
+      ROLE_SERVICE_URL: http://role-service:5003
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key}
+      PORT: 5001
+    depends_on:
+      - mongodb
+    networks:
+      - microservices-network
+
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    ports:
+      - "5002:5002"
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/local-knowledge
+      ROLE_SERVICE_URL: http://role-service:5003
+      PORT: 5002
+    depends_on:
+      - mongodb
+    networks:
+      - microservices-network
+
+  role-service:
+    build:
+      context: ./role-service
+      dockerfile: Dockerfile
+    container_name: role-service
+    ports:
+      - "5003:5003"
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/local-knowledge
+      PORT: 5003
+    depends_on:
+      - mongodb
+    networks:
+      - microservices-network
+
+  api-gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      AUTH_SERVICE_URL: http://auth-service:5001
+      USER_SERVICE_URL: http://user-service:5002
+      ROLE_SERVICE_URL: http://role-service:5003
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key}
+      PORT: 8000
+    depends_on:
+      - auth-service
+      - user-service
+      - role-service
+    networks:
+      - microservices-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  microservices-network:
+    driver: bridge

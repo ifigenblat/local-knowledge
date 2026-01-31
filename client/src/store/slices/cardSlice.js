@@ -1,20 +1,57 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-// Async thunk for fetching cards
+// Async thunk for fetching cards (optional: { page, limit, search, type, category } — server-side pagination)
 export const fetchCards = createAsyncThunk(
   'cards/fetchCards',
-  async (_, { rejectWithValue }) => {
+  async ({ page = 1, limit = 20, search, type, category, source, sourceFileType } = {}, { rejectWithValue }) => {
     try {
       const token = localStorage.getItem('token');
+      const params = { page, limit };
+      if (search) params.search = search;
+      if (type) params.type = type;
+      if (category) params.category = category;
+      if (source) params.source = source;
+      if (sourceFileType) params.sourceFileType = sourceFileType;
       const response = await axios.get('/api/cards', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        params,
       });
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch cards');
+      const data = error.response?.data;
+      const generic = data?.error === 'Server error' && data?.message;
+      const msg = generic ? data.message : (data?.error || data?.message || error.message || 'Failed to fetch cards');
+      return rejectWithValue(msg);
+    }
+  }
+);
+
+// Async thunk for fetching cards count only (optional: { search, type, category } — same filters as list)
+export const fetchCardsCount = createAsyncThunk(
+  'cards/fetchCardsCount',
+  async ({ search, type, category, source, sourceFileType } = {}, { rejectWithValue }) => {
+    try {
+      const token = localStorage.getItem('token');
+      const params = {};
+      if (search) params.search = search;
+      if (type) params.type = type;
+      if (category) params.category = category;
+      if (source) params.source = source;
+      if (sourceFileType) params.sourceFileType = sourceFileType;
+      const response = await axios.get('/api/cards/count', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        params,
+      });
+      return response.data;
+    } catch (error) {
+      const data = error.response?.data;
+      const msg = data?.error || data?.message || error.message || 'Failed to fetch cards count';
+      return rejectWithValue(msg);
     }
   }
 );
@@ -100,7 +137,10 @@ export const checkAIStatusAsync = createAsyncThunk(
   'cards/checkAIStatusAsync',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/ai/status');
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/ai/status', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data || { enabled: false, available: false, error: 'Failed to check AI status' });
@@ -120,6 +160,7 @@ const initialState = {
   pagination: {
     current: 1,
     total: 0,
+    totalCount: 0,
     hasNext: false,
     hasPrev: false,
   },
@@ -180,22 +221,22 @@ const cardSlice = createSlice({
       })
       .addCase(fetchCards.fulfilled, (state, action) => {
         state.loading = false;
-        // Only replace cards if we're doing a fresh fetch (not just adding new ones)
-        // This prevents overwriting cards that were just added via addCard
         const newCards = action.payload.cards || action.payload;
         if (Array.isArray(newCards)) {
-          // Merge existing cards with new cards, avoiding duplicates
-          const existingCardIds = new Set(state.cards.map(card => card._id));
-          const uniqueNewCards = newCards.filter(card => !existingCardIds.has(card._id));
-          state.cards = [...uniqueNewCards, ...state.cards];
+          state.cards = newCards;
         }
         if (action.payload.pagination) {
-          state.pagination = action.payload.pagination;
+          state.pagination = { ...state.pagination, ...action.payload.pagination };
         }
       })
       .addCase(fetchCards.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+      })
+      .addCase(fetchCardsCount.fulfilled, (state, action) => {
+        if (action.payload?.count != null) {
+          state.pagination.totalCount = action.payload.count;
+        }
       })
       .addCase(createCardAsync.pending, (state) => {
         state.loading = true;

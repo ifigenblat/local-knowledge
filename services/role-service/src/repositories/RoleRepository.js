@@ -1,4 +1,5 @@
-const BaseRepository = require('../../../shared/repository-pattern');
+const path = require('path');
+const BaseRepository = require(path.join(__dirname, '../../../shared/repository-pattern'));
 const Role = require('../models/Role');
 
 class RoleRepository extends BaseRepository {

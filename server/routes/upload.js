@@ -77,6 +77,7 @@ async function createOrUpdateCard(cardData, userId, file, fileHash, fileId = nul
       tags: cardData.tags || [],
       source: file.originalname,
       user: userId,
+      generatedBy: cardData.generatedBy || 'rule-based',
       attachments: [{
         filename: file.filename,
         originalName: file.originalname,
@@ -346,6 +347,82 @@ router.post('/multiple', auth, upload.array('files', 5), async (req, res) => {
       error: 'Error processing files',
       message: error.message 
     });
+  }
+});
+
+// Internal: process an already-uploaded file (called by upload-service)
+// Expects JSON body: { filePath, originalName, filename, size, mimetype? } and optional category, tags, model_name, prompt_version, confidence_score
+// Expects X-User-Id header (set by upload-service)
+const processUploadedFileAuth = (req, res, next) => {
+  const userId = req.headers['x-user-id'];
+  if (userId) {
+    req.user = { id: userId, email: req.headers['x-user-email'] || '' };
+    return next();
+  }
+  return auth(req, res, next);
+};
+
+router.post('/process-uploaded-file', processUploadedFileAuth, async (req, res) => {
+  try {
+    const { filePath, originalName, filename, size, mimetype, category, tags, model_name, prompt_version, confidence_score } = req.body;
+    if (!filePath || !originalName || !filename) {
+      return res.status(400).json({ error: 'filePath, originalName, and filename are required' });
+    }
+    if (!fs.existsSync(filePath)) {
+      return res.status(400).json({ error: 'File not found at path', message: 'File not found' });
+    }
+    const file = {
+      path: filePath,
+      originalname: originalName,
+      filename,
+      size: size || 0,
+      mimetype: mimetype || 'application/octet-stream',
+    };
+    const fileHash = generateFileHash(filePath);
+    const fileId = filename;
+    const processedContent = await processContent(file);
+    if (!processedContent || processedContent.length === 0) {
+      return res.status(400).json({ error: 'No content could be extracted from the file' });
+    }
+    const createdCards = [];
+    const updatedCards = [];
+    for (let i = 0; i < processedContent.length; i++) {
+      const item = processedContent[i];
+      if (!item.content || typeof item.content !== 'string' || item.content.trim().length < 10) continue;
+      const placeholderTexts = ['No content', 'no content', 'N/A', 'n/a', 'NA', 'na', 'None', 'none', 'Null', 'null'];
+      if (placeholderTexts.includes(item.content.trim())) continue;
+      const provenance = {
+        ...(item.provenance || {}),
+        model_name: model_name || item.provenance?.model_name || null,
+        prompt_version: prompt_version || item.provenance?.prompt_version || '1.0',
+        confidence_score: confidence_score ? parseFloat(confidence_score) : item.provenance?.confidence_score || null,
+      };
+      const cardData = {
+        title: item.title,
+        content: item.content,
+        type: item.type || 'concept',
+        category: category || item.category || 'General',
+        tags: tags ? (typeof tags === 'string' ? tags.split(',').map(t => t.trim()) : tags) : item.tags || [],
+        provenance,
+      };
+      try {
+        const result = await createOrUpdateCard(cardData, req.user.id, file, fileHash, fileId);
+        if (result.isDuplicate) updatedCards.push(result.card);
+        else createdCards.push(result.card);
+      } catch (err) {
+        console.error('Error processing item:', err);
+      }
+    }
+    const totalProcessed = createdCards.length + updatedCards.length;
+    res.status(201).json({
+      message: `Successfully processed ${totalProcessed} cards`,
+      details: { created: createdCards.length, updated: updatedCards.length },
+      cards: [...createdCards, ...updatedCards],
+      file: { filename, originalName, size: size || 0 },
+    });
+  } catch (error) {
+    console.error('Process uploaded file error:', error);
+    res.status(500).json({ error: 'Error processing file', message: error.message });
   }
 });
 

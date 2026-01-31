@@ -5,7 +5,10 @@
   "main": "server/index.js",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev:microservices": "bash start-dev-microservices.sh",
     "server": "cd server && npm run dev",
+    "backend": "bash start-backend.sh",
+    "backend:check": "curl -s http://localhost:5010/api/health || echo 'Backend not running. Start it: npm run backend'",
     "client": "cd client && npm start",
     "build": "cd client && npm run build",
     "install-all": "npm install && cd server && npm install && cd ../client && npm install",
@@ -19,7 +22,11 @@
     "docker:logs": "docker logs mongodb",
     "test:backend": "curl http://localhost:5001/api/health",
     "test:frontend": "curl -I http://localhost:3000",
-    "test:proxy": "curl http://localhost:3000/api/health"
+    "test:proxy": "curl http://localhost:3000/api/health",
+    "test:cards": "cd services/card-service && node test-card-endpoints.js",
+    "test:collections": "cd services/collection-service && node test-collection-endpoints.js",
+    "test:uploads": "cd services/upload-service && node test-upload-endpoints.js",
+    "count:cards": "cd services/card-service && node count-cards.js"
   },
   "keywords": [
     "react",

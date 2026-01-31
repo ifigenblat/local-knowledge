@@ -1,17 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchCards, deleteCardAsync, updateCardAsync, regenerateCardAsync } from '../store/slices/cardSlice';
+import { fetchCards, fetchCardsCount, deleteCardAsync, updateCardAsync, regenerateCardAsync } from '../store/slices/cardSlice';
 import { toast } from 'react-hot-toast';
 import { Search, Loader2, X, Star, BookOpen, Target, Quote, CheckSquare, Network } from 'lucide-react';
 import Card from '../components/Card';
 import CardDetailModal from '../components/CardDetailModal';
 
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
+const SOURCE_FILE_TYPE_OPTIONS = [
+  { value: 'all', label: 'All file types' },
+  { value: 'pdf', label: 'PDF' },
+  { value: 'docx', label: 'Word (DOCX)' },
+  { value: 'doc', label: 'Word (DOC)' },
+  { value: 'xlsx', label: 'Excel (XLSX)' },
+  { value: 'xls', label: 'Excel (XLS)' },
+  { value: 'txt', label: 'Text (TXT)' },
+  { value: 'md', label: 'Markdown (MD)' },
+  { value: 'json', label: 'JSON' },
+  { value: 'jpeg', label: 'JPEG' },
+  { value: 'jpg', label: 'JPG' },
+  { value: 'png', label: 'PNG' },
+  { value: 'gif', label: 'GIF' },
+];
+
 const View = () => {
   const dispatch = useDispatch();
-  const { cards, loading, error } = useSelector((state) => state.cards);
+  const { cards, loading, error, pagination } = useSelector((state) => state.cards);
   const [searchTerm, setSearchTerm] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [appliedSourceFilter, setAppliedSourceFilter] = useState('');
+  const [selectedSourceFileType, setSelectedSourceFileType] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
   const [editFormData, setEditFormData] = useState({
@@ -27,9 +50,35 @@ const View = () => {
   const [selectedCard, setSelectedCard] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
+  // Debounce search
   useEffect(() => {
-    dispatch(fetchCards());
-  }, [dispatch]);
+    const t = setTimeout(() => {
+      setAppliedSearch(searchTerm.trim());
+      setCurrentPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+  // Debounce source filter
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAppliedSourceFilter(sourceFilter.trim());
+      setCurrentPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [sourceFilter]);
+
+  // Fetch cards and count with server-side pagination and filters
+  useEffect(() => {
+    const filters = {
+      search: appliedSearch || undefined,
+      type: filterType !== 'all' ? filterType : undefined,
+      category: filterCategory !== 'all' ? filterCategory : undefined,
+      source: appliedSourceFilter || undefined,
+      sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
+    };
+    dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
+    dispatch(fetchCardsCount(filters));
+  }, [currentPage, pageSize, appliedSearch, appliedSourceFilter, filterType, filterCategory, selectedSourceFileType, dispatch]);
 
   const handleDeleteCard = async (cardId) => {
     // Show confirmation dialog
@@ -85,7 +134,7 @@ const View = () => {
       setShowEditModal(false);
       setEditingCard(null);
       // Refresh cards to get updated data
-      dispatch(fetchCards());
+      dispatch(fetchCards({ page: currentPage, limit: pageSize, search: appliedSearch || undefined, type: filterType !== 'all' ? filterType : undefined, category: filterCategory !== 'all' ? filterCategory : undefined }));
     } catch (error) {
       toast.error(error || 'Failed to update card');
     }
@@ -97,7 +146,7 @@ const View = () => {
     if (typeof regeneratedCard === 'object' && regeneratedCard !== null) {
       // Card object passed from CardDetailModal
       setSelectedCard(regeneratedCard);
-      dispatch(fetchCards());
+      dispatch(fetchCards({ page: currentPage, limit: pageSize, search: appliedSearch || undefined, type: filterType !== 'all' ? filterType : undefined, category: filterCategory !== 'all' ? filterCategory : undefined, source: appliedSourceFilter || undefined, sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined }));
     } else {
       // Legacy: useAI boolean parameter (shouldn't happen from CardDetailModal)
       const useAI = regeneratedCard === true;
@@ -107,7 +156,7 @@ const View = () => {
         const result = await dispatch(regenerateCardAsync({ cardId: selectedCard._id, useAI })).unwrap();
         toast.success(`Card regenerated successfully ${useAI ? 'using AI' : 'using rule-based'}`);
         setSelectedCard(result);
-        dispatch(fetchCards());
+        dispatch(fetchCards({ page: currentPage, limit: pageSize, search: appliedSearch || undefined, type: filterType !== 'all' ? filterType : undefined, category: filterCategory !== 'all' ? filterCategory : undefined, source: appliedSourceFilter || undefined, sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined }));
       } catch (error) {
         const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
         toast.error(errorMessage);
@@ -164,19 +213,10 @@ const View = () => {
     return getTypeColor(type);
   };
 
-  // Filter cards based on search and filters
-  const filteredCards = cards.filter(card => {
-    const matchesSearch = card.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         card.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         card.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    const matchesType = filterType === 'all' || card.type === filterType;
-    const matchesCategory = filterCategory === 'all' || card.category === filterCategory;
-    
-    return matchesSearch && matchesType && matchesCategory;
-  });
+  // Cards are already filtered by the API (search, type, category); display current page
+  const displayCards = cards;
 
-  // Get unique types and categories for filters
+  // Get unique types and categories for filters (from current cards + valid types)
   // Define all valid card types (from Card model enum)
   const validCardTypes = ['concept', 'action', 'quote', 'checklist', 'mindmap'];
   // Show all valid types in filter, not just types that exist in current cards
@@ -188,34 +228,24 @@ const View = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 pt-12 sm:pt-0">
-      {/* Show loading inline instead of replacing entire page */}
-      {loading && (
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">Loading cards...</p>
-        </div>
-      )}
-      
       {/* Show error inline */}
       {error && !loading && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
           <p className="text-red-800">Error loading cards: {error}</p>
         </div>
       )}
-      
-      {/* Only show content when not loading */}
-      {!loading && (
-        <>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
-              View Cards ({filteredCards.length})
-            </h1>
-            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
-              Browse and view your learning cards
-            </p>
-          </div>
 
-          {/* Search and Filters */}
+      {/* Header and search always visible so input keeps focus during refetch */}
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+          View Cards
+        </h1>
+        <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
+          Browse and view your learning cards
+        </p>
+      </div>
+
+      {/* Search and Filters */}
       <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           {/* Search */}
@@ -236,7 +266,10 @@ const View = () => {
           <div className="sm:w-48">
             <select
               value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
+              onChange={(e) => {
+                setFilterType(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
             >
               <option value="all">All Types</option>
@@ -250,7 +283,10 @@ const View = () => {
           <div className="sm:w-48">
             <select
               value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
+              onChange={(e) => {
+                setFilterCategory(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
             >
               <option value="all">All Categories</option>
@@ -259,11 +295,97 @@ const View = () => {
               ))}
             </select>
           </div>
+
+          {/* Source (filename) */}
+          <div className="sm:w-40">
+            <input
+              type="text"
+              placeholder="Source (filename)"
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+
+          {/* Source file type */}
+          <div className="sm:w-40">
+            <select
+              value={selectedSourceFileType}
+              onChange={(e) => {
+                setSelectedSourceFileType(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+            >
+              {SOURCE_FILE_TYPE_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Results area: show loading below search so search input stays mounted and keeps focus */}
+      {loading ? (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">Loading cards...</p>
+        </div>
+      ) : (
+        <>
+      {/* Pagination - top */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            {pagination.totalCount != null && pagination.totalCount > 0 ? (
+              pagination.totalCount <= pageSize ? (
+                <>Showing all {pagination.totalCount} cards</>
+              ) : (
+                <>Showing {(pagination.current - 1) * pageSize + 1}-{Math.min(pagination.current * pageSize, pagination.totalCount)} of {pagination.totalCount} cards</>
+              )
+            ) : (
+              <>Showing {cards.length} card{cards.length !== 1 ? 's' : ''}</>
+            )}
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <span>Per page</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={!pagination.hasPrev}
+            className="px-4 py-2 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Previous
+          </button>
+          <span className="text-sm text-gray-600 dark:text-gray-400 px-2 whitespace-nowrap">
+            Page {pagination.current || 1} of {Math.max(pagination.total || 1, 1)}
+          </span>
+          <button
+            onClick={() => setCurrentPage(p => p + 1)}
+            disabled={!pagination.hasNext}
+            className="px-4 py-2 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Next
+          </button>
         </div>
       </div>
 
       {/* Cards Grid */}
-      {filteredCards.length === 0 ? (
+      {displayCards.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 text-center">
           {cards.length === 0 ? (
             <div>
@@ -284,8 +406,9 @@ const View = () => {
           )}
         </div>
       ) : (
+        <>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {filteredCards.map((card) => (
+          {displayCards.map((card) => (
             <Card 
               key={card._id} 
               card={card} 
@@ -299,6 +422,58 @@ const View = () => {
             />
           ))}
         </div>
+
+        {/* Pagination */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
+              {pagination.totalCount != null && pagination.totalCount > 0 ? (
+                pagination.totalCount <= pageSize ? (
+                  <>Showing all {pagination.totalCount} cards</>
+                ) : (
+                  <>Showing {(pagination.current - 1) * pageSize + 1}-{Math.min(pagination.current * pageSize, pagination.totalCount)} of {pagination.totalCount} cards</>
+                )
+              ) : (
+                <>Showing {cards.length} card{cards.length !== 1 ? 's' : ''}</>
+              )}
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <span>Per page</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={!pagination.hasPrev}
+              className="px-4 py-2 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-600 dark:text-gray-400 px-2 whitespace-nowrap">
+              Page {pagination.current || 1} of {Math.max(pagination.total || 1, 1)}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => p + 1)}
+              disabled={!pagination.hasNext}
+              className="px-4 py-2 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+        </>
       )}
         </>
       )}

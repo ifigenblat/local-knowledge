@@ -82,6 +82,11 @@ const cardSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  generatedBy: {
+    type: String,
+    enum: ['rule-based', 'ai'],
+    default: 'rule-based'
+  },
   attachments: [{
     filename: String,
     originalName: String,

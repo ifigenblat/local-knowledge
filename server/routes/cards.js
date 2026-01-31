@@ -8,7 +8,7 @@ const { regenerateCardHybrid, regenerateCardComparison, regenerateCardWithAI } =
 // Get all cards for a user
 router.get('/', auth, async (req, res) => {
   try {
-    const { type, category, search, page = 1, limit = 20 } = req.query;
+    const { type, category, search, source, sourceFileType, page = 1, limit = 20 } = req.query;
     const query = { user: req.user.id };
 
     // Add filters
@@ -16,6 +16,25 @@ router.get('/', auth, async (req, res) => {
     if (category) query.category = category;
     if (search) {
       query.$text = { $search: search };
+    }
+    if (source && source.trim()) {
+      query.source = { $regex: source.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+    }
+    if (sourceFileType && sourceFileType.trim()) {
+      const ext = sourceFileType.trim().toLowerCase().replace(/^\./, '');
+      if (ext) {
+        const extRegex = new RegExp('\\.' + ext.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i');
+        const mimeRegex = new RegExp(ext.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        query.$and = query.$and || [];
+        query.$and.push({
+          $or: [
+            { source: extRegex },
+            { 'attachments.0.filename': extRegex },
+            { 'attachments.0.mimetype': mimeRegex },
+            { 'provenance.source_file_id': extRegex }
+          ]
+        });
+      }
     }
 
     const options = {
@@ -36,6 +55,7 @@ router.get('/', auth, async (req, res) => {
       pagination: {
         current: options.page,
         total: Math.ceil(total / options.limit),
+        totalCount: total,
         hasNext: options.page * options.limit < total,
         hasPrev: options.page > 1
       }
@@ -269,6 +289,7 @@ router.post('/:id/regenerate', auth, async (req, res) => {
       card.type = regeneratedCardData.type;
       card.category = regeneratedCardData.category;
       card.tags = regeneratedCardData.tags;
+      card.generatedBy = selectedVersion === 'ai' ? 'ai' : 'rule-based';
 
       // Preserve existing provenance but update snippet if it changed
       if (regeneratedCardData.provenance) {
@@ -334,6 +355,7 @@ router.post('/:id/regenerate', auth, async (req, res) => {
     card.type = regeneratedCardData.type;
     card.category = regeneratedCardData.category;
     card.tags = regeneratedCardData.tags;
+    card.generatedBy = regeneratedCardData.generatedBy || 'rule-based';
 
     // Preserve existing provenance but update snippet if it changed
     if (regeneratedCardData.provenance) {

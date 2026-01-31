@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "backend": "PORT=5010 nodemon index.js",
     "test": "jest"
   },
   "dependencies": {

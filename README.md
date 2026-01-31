@@ -184,6 +184,28 @@ cd client
 npm start
 ```
 
+### Microservices + Frontend
+
+To run the API Gateway, auth/user/role services, **backend (cards, collections, upload)**, and frontend:
+
+```bash
+# Terminal 1 - All services (gateway, auth, user, role, backend on port 5010)
+cd services
+./start-all.sh
+
+# Terminal 2 - Frontend (must be started in a separate terminal)
+cd client
+npm start
+```
+
+Or from repo root: `npm run dev:microservices` (starts all services then frontend in one terminal). Ensure MongoDB is running first (`docker start mongodb` or `docker run -d -p 27017:27017 mongo:7`). The backend (monolith server on port 5010) serves cards, collections, upload, and preview; the gateway proxies these to it.
+
+**If you see "Backend unavailable" or "Error loading cards"**: the backend (cards server) must be running on port 5010. **Open a new terminal** and run:
+```bash
+npm run backend
+```
+Leave that terminal open. Or use `cd services && ./start-all.sh` (which starts the backend too). See `services/TROUBLESHOOTING.md` for more.
+
 ## Project Structure
 
 ```

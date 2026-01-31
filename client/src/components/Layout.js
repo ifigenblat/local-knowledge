@@ -6,6 +6,7 @@ import {
   Home, 
   Upload, 
   FolderOpen,
+  FileText,
   Table,
   Grid,
   LogOut,
@@ -95,6 +96,15 @@ const Layout = ({ children }) => {
             >
               <Upload className="w-5 h-5 mr-3" />
               Upload
+            </Link>
+
+            <Link
+              to="/files"
+              onClick={handleLinkClick}
+              className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${getActiveClass('/files')}`}
+            >
+              <FileText className="w-5 h-5 mr-3" />
+              Files
             </Link>
 
             {/* View Cards - Grid Layout */}

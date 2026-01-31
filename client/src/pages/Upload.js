@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
+import { Link } from 'react-router-dom';
 import { addMultipleCards } from '../store/slices/cardSlice';
 import UploadZone from '../components/UploadZone';
 
@@ -19,7 +20,6 @@ const Upload = () => {
     
     // Add the newly created cards to the Redux store
     if (result.cards && Array.isArray(result.cards)) {
-      // Use addMultipleCards for better efficiency
       dispatch(addMultipleCards(result.cards));
     }
   };
@@ -148,6 +148,12 @@ const Upload = () => {
             <br />
             <strong>Message:</strong> {uploadResults.message}
           </div>
+          <Link
+            to="/files"
+            className="inline-block mt-3 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            Manage uploaded files →
+          </Link>
         </div>
       )}
 

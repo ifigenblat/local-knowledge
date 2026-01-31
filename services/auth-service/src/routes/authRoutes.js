@@ -27,10 +27,16 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
+    console.log(`[Auth] Login attempt for: ${email}`);
     const result = await AuthService.login(email, password);
+    console.log(`[Auth] Login successful for: ${email}`);
     res.json(result);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error(`[Auth] Login failed for ${req.body?.email || 'unknown'}:`, error.message);
+    console.error(`[Auth] Error stack:`, error.stack);
+    // Return 400 for client errors, 500 for server errors
+    const statusCode = error.message.includes('Invalid credentials') || error.message.includes('required') ? 400 : 500;
+    res.status(statusCode).json({ error: error.message });
   }
 });
 

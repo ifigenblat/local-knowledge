@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { fetchCards, deleteCardAsync, updateCardAsync, createCardAsync, regenerateCardAsync } from '../store/slices/cardSlice';
+import { fetchCards, fetchCardsCount, deleteCardAsync, updateCardAsync, createCardAsync, regenerateCardAsync } from '../store/slices/cardSlice';
 import { fetchCollections, addCardToCollection, removeCardFromCollection, fetchCollection } from '../store/slices/collectionSlice';
 import { toast } from 'react-hot-toast';
 import { 
@@ -27,18 +27,41 @@ import {
 } from 'lucide-react';
 import CardDetailModal from '../components/CardDetailModal';
 
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
+const SOURCE_FILE_TYPE_OPTIONS = [
+  { value: 'all', label: 'All file types' },
+  { value: 'pdf', label: 'PDF' },
+  { value: 'docx', label: 'Word (DOCX)' },
+  { value: 'doc', label: 'Word (DOC)' },
+  { value: 'xlsx', label: 'Excel (XLSX)' },
+  { value: 'xls', label: 'Excel (XLS)' },
+  { value: 'txt', label: 'Text (TXT)' },
+  { value: 'md', label: 'Markdown (MD)' },
+  { value: 'json', label: 'JSON' },
+  { value: 'jpeg', label: 'JPEG' },
+  { value: 'jpg', label: 'JPG' },
+  { value: 'png', label: 'PNG' },
+  { value: 'gif', label: 'GIF' },
+];
+
 const Cards = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const collectionId = searchParams.get('collection');
   
-  const { cards, loading, error } = useSelector((state) => state.cards);
+  const { cards, loading, error, pagination } = useSelector((state) => state.cards);
   const { collections } = useSelector((state) => state.collections);
   const [selectedCollection, setSelectedCollection] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [selectedSourceFileType, setSelectedSourceFileType] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [appliedSourceFilter, setAppliedSourceFilter] = useState('');
   const [selectedCard, setSelectedCard] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -59,8 +82,37 @@ const Cards = () => {
   const [selectedCardIds, setSelectedCardIds] = useState(new Set());
   const [showBulkAddModal, setShowBulkAddModal] = useState(false);
 
+  // Debounce search: apply after 400ms of no typing
   useEffect(() => {
-    dispatch(fetchCards());
+    const t = setTimeout(() => {
+      setAppliedSearch(searchTerm.trim());
+      setCurrentPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+  // Debounce source filter
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAppliedSourceFilter(sourceFilter.trim());
+      setCurrentPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [sourceFilter]);
+
+  // Fetch cards and count with server-side pagination and filters
+  useEffect(() => {
+    const filters = {
+      search: appliedSearch || undefined,
+      type: selectedType !== 'all' ? selectedType : undefined,
+      category: selectedCategory !== 'all' ? selectedCategory : undefined,
+      source: appliedSourceFilter || undefined,
+      sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
+    };
+    dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
+    dispatch(fetchCardsCount(filters));
+  }, [currentPage, pageSize, appliedSearch, appliedSourceFilter, selectedType, selectedCategory, selectedSourceFileType, dispatch]);
+
+  useEffect(() => {
     dispatch(fetchCollections());
   }, [dispatch]);
 
@@ -124,6 +176,7 @@ const Cards = () => {
       await dispatch(createCardAsync(editFormData)).unwrap();
       toast.success('Card created successfully');
       setShowCreateModal(false);
+      setCurrentPage(1);
       setEditFormData({
         title: '',
         content: '',
@@ -134,8 +187,15 @@ const Cards = () => {
         isPublic: false
       });
       setTagInput('');
-      // Refresh cards to get updated data
-      dispatch(fetchCards());
+      setCurrentPage(1);
+      const filters = {
+        search: appliedSearch || undefined,
+        type: selectedType !== 'all' ? selectedType : undefined,
+        category: selectedCategory !== 'all' ? selectedCategory : undefined,
+        source: appliedSourceFilter || undefined,
+        sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
+      };
+      dispatch(fetchCards({ page: 1, limit: pageSize, ...filters }));
     } catch (error) {
       // Handle different error formats
       let errorMessage = 'Failed to create card';
@@ -167,8 +227,14 @@ const Cards = () => {
       toast.success('Card updated successfully');
       setShowEditModal(false);
       setEditingCard(null);
-      // Refresh cards to get updated data
-      dispatch(fetchCards());
+      const filters = {
+        search: appliedSearch || undefined,
+        type: selectedType !== 'all' ? selectedType : undefined,
+        category: selectedCategory !== 'all' ? selectedCategory : undefined,
+        source: appliedSourceFilter || undefined,
+        sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
+      };
+      dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
     } catch (error) {
       toast.error(error || 'Failed to update card');
     }
@@ -180,7 +246,12 @@ const Cards = () => {
     if (typeof regeneratedCard === 'object' && regeneratedCard !== null) {
       // Card object passed from CardDetailModal
       setSelectedCard(regeneratedCard);
-      dispatch(fetchCards());
+      const filters = {
+        search: appliedSearch || undefined,
+        type: selectedType !== 'all' ? selectedType : undefined,
+        category: selectedCategory !== 'all' ? selectedCategory : undefined,
+      };
+      dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
     } else {
       // Legacy: useAI boolean parameter (shouldn't happen from CardDetailModal)
       const useAI = regeneratedCard === true;
@@ -190,7 +261,14 @@ const Cards = () => {
         const result = await dispatch(regenerateCardAsync({ cardId: selectedCard._id, useAI })).unwrap();
         toast.success(`Card regenerated successfully ${useAI ? 'using AI' : 'using rule-based'}`);
         setSelectedCard(result);
-        dispatch(fetchCards());
+        const filters = {
+          search: appliedSearch || undefined,
+          type: selectedType !== 'all' ? selectedType : undefined,
+          category: selectedCategory !== 'all' ? selectedCategory : undefined,
+          source: appliedSourceFilter || undefined,
+          sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
+        };
+        dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
       } catch (error) {
         const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
         toast.error(errorMessage);
@@ -257,8 +335,9 @@ const Cards = () => {
     );
   };
 
+  // API already filters by search, type, category across all cards (server-side).
+  // Only filter by collection when one is selected (client-side subset of current page).
   const filteredCards = cards.filter(card => {
-    // Filter by collection if a collection is selected
     if (selectedCollection && selectedCollection.cards) {
       const cardIds = selectedCollection.cards.map(c => 
         typeof c === 'string' ? c : c._id
@@ -267,14 +346,7 @@ const Cards = () => {
         return false;
       }
     }
-    
-    const matchesSearch = card.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         card.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         card.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCategory = selectedCategory === 'all' || card.category === selectedCategory;
-    const matchesType = selectedType === 'all' || card.type === selectedType;
-    
-    return matchesSearch && matchesCategory && matchesType;
+    return true;
   });
 
   const handleClearCollectionFilter = () => {
@@ -364,7 +436,14 @@ const Cards = () => {
       }
 
       setSelectedCardIds(new Set());
-      dispatch(fetchCards());
+      const filters = {
+        search: appliedSearch || undefined,
+        type: selectedType !== 'all' ? selectedType : undefined,
+        category: selectedCategory !== 'all' ? selectedCategory : undefined,
+        source: appliedSourceFilter || undefined,
+        sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
+      };
+      dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
     } catch (error) {
       toast.error('Failed to delete cards');
     }
@@ -426,28 +505,18 @@ const Cards = () => {
 
   return (
     <div className={`w-full px-4 pt-16 sm:pt-4 pb-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 ${selectedCardIds.size > 0 ? 'pb-24 sm:pb-24' : ''}`}>
-      {/* Show loading inline instead of replacing entire page */}
-      {loading && (
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">Loading cards...</p>
-        </div>
-      )}
-      
       {/* Show error inline */}
       {error && !loading && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
           <p className="text-red-800">Error loading cards: {error}</p>
         </div>
       )}
-      
-      {/* Only show content when not loading */}
-      {!loading && (
-        <>
+
+      {/* Header and search always visible so input keeps focus during refetch */}
       <div className="mb-6 sm:mb-8">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-            Cards ({filteredCards.length})
+            Cards
           </h1>
           <div className="flex items-center space-x-2">
             <button
@@ -498,7 +567,10 @@ const Cards = () => {
           
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full sm:w-auto px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All Categories</option>
@@ -509,7 +581,10 @@ const Cards = () => {
           
           <select
             value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
+            onChange={(e) => {
+              setSelectedType(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full sm:w-auto px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All Types</option>
@@ -517,8 +592,90 @@ const Cards = () => {
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
+
+          <input
+            type="text"
+            placeholder="Source (filename)"
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            className="w-full sm:w-40 px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+
+          <select
+            value={selectedSourceFileType}
+            onChange={(e) => {
+              setSelectedSourceFileType(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full sm:w-auto px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {SOURCE_FILE_TYPE_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
         </div>
       </div>
+
+      {/* Results area: show loading below search so search input stays mounted and keeps focus */}
+      {loading ? (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">Loading cards...</p>
+        </div>
+      ) : (
+        <>
+      {/* Pagination - top (when not filtering by a single collection) */}
+      {!selectedCollection && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
+              {pagination.totalCount != null && pagination.totalCount > 0 ? (
+                pagination.totalCount <= pageSize ? (
+                  <>Showing all {pagination.totalCount} cards</>
+                ) : (
+                  <>Showing {(pagination.current - 1) * pageSize + 1}-{Math.min(pagination.current * pageSize, pagination.totalCount)} of {pagination.totalCount} cards</>
+                )
+              ) : (
+                <>Showing {cards.length} card{cards.length !== 1 ? 's' : ''}</>
+              )}
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <span>Per page</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={!pagination.hasPrev}
+              className="px-4 py-2 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-600 dark:text-gray-400 px-2 whitespace-nowrap">
+              Page {pagination.current || 1} of {Math.max(pagination.total || 1, 1)}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => p + 1)}
+              disabled={!pagination.hasNext}
+              className="px-4 py-2 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Cards Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
@@ -548,6 +705,9 @@ const Cards = () => {
                   <th className="hidden lg:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Source
                   </th>
+                  <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Generated
+                  </th>
                   <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Actions
                   </th>
@@ -556,7 +716,7 @@ const Cards = () => {
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredCards.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-4 sm:px-6 py-12 text-center">
+                    <td colSpan="7" className="px-4 sm:px-6 py-12 text-center">
                       <div className="text-gray-500 dark:text-gray-400">
                         {cards.length === 0 ? (
                           <div>
@@ -606,6 +766,9 @@ const Cards = () => {
                                   {card.type}
                                 </span>
                                 <span className="text-gray-500 dark:text-gray-400">{card.category}</span>
+                                <span className={`px-2 py-0.5 rounded ${card.generatedBy === 'ai' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                  {card.generatedBy === 'ai' ? 'AI' : 'Rule-based'}
+                                </span>
                               </div>
                               <div className="flex items-center space-x-1">
                                 <button
@@ -652,6 +815,11 @@ const Cards = () => {
                       <td className="hidden lg:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {card.source || '—'}
                       </td>
+                      <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded ${card.generatedBy === 'ai' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                          {card.generatedBy === 'ai' ? 'AI' : 'Rule-based'}
+                        </span>
+                      </td>
                       <td className="hidden sm:table-cell px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-1 sm:space-x-2">
                           <button
@@ -693,6 +861,59 @@ const Cards = () => {
         </div>
       </div>
 
+      {/* Pagination - show when not filtering by a single collection */}
+      {!selectedCollection && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
+              {pagination.totalCount != null && pagination.totalCount > 0 ? (
+                pagination.totalCount <= pageSize ? (
+                  <>Showing all {pagination.totalCount} cards</>
+                ) : (
+                  <>Showing {(pagination.current - 1) * pageSize + 1}-{Math.min(pagination.current * pageSize, pagination.totalCount)} of {pagination.totalCount} cards</>
+                )
+              ) : (
+                <>Showing {cards.length} card{cards.length !== 1 ? 's' : ''}</>
+              )}
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <span>Per page</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={!pagination.hasPrev}
+              className="px-4 py-2 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-600 dark:text-gray-400 px-2 whitespace-nowrap">
+              Page {pagination.current || 1} of {Math.max(pagination.total || 1, 1)}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => p + 1)}
+              disabled={!pagination.hasNext}
+              className="px-4 py-2 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Bulk Action Bar */}
       {selectedCardIds.size > 0 && (
         <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-blue-600 dark:bg-blue-700 text-white shadow-lg z-40 p-3 sm:p-4">
@@ -732,7 +953,7 @@ const Cards = () => {
         </>
       )}
 
-      {/* Bulk Add to Collection Modal - Outside loading conditional so it stays visible */}
+      {/* Bulk Add to Collection Modal */}
       {showBulkAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">

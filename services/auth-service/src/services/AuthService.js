@@ -70,6 +70,8 @@ class AuthService {
   }
 
   async login(email, password) {
+    // With bufferCommands: true, Mongoose will buffer queries if not connected
+    // The middleware already ensures connection, so we can proceed
     const user = await UserRepository.findByEmailWithRole(email);
     if (!user) {
       throw new Error('Invalid credentials');

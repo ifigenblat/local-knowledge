@@ -8,6 +8,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const cardRoutes = require('./routes/cards');
 const uploadRoutes = require('./routes/upload');
+const fileRoutes = require('./routes/files');
 const collectionRoutes = require('./routes/collections');
 const previewRoutes = require('./routes/preview');
 const roleRoutes = require('./routes/roles');
@@ -70,6 +71,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/local-kno
 app.use('/api/auth', authRoutes);
 app.use('/api/cards', cardRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/files', fileRoutes);
 app.use('/api/collections', collectionRoutes);
 app.use('/api/preview', previewRoutes);
 app.use('/api/roles', roleRoutes);

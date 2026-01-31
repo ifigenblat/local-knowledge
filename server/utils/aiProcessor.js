@@ -179,6 +179,7 @@ JSON format:
       category: cardData.category.trim(),
       tags: cardData.tags.map(tag => tag.toLowerCase().trim()).filter(tag => tag.length > 0),
       source: sourceFileName,
+      generatedBy: 'ai',
       provenance: {
         snippet: snippetPreview,
         model_name: OLLAMA_MODEL,

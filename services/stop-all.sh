@@ -39,6 +39,24 @@ if [ -f logs/role-service.pid ]; then
     rm logs/role-service.pid
 fi
 
+if [ -f logs/card-service.pid ]; then
+    PID=$(cat logs/card-service.pid)
+    if kill -0 $PID 2>/dev/null; then
+        kill $PID
+        echo -e "${GREEN}✓${NC} Stopped Card Service (PID: $PID)"
+    fi
+    rm logs/card-service.pid
+fi
+
+if [ -f logs/collection-service.pid ]; then
+    PID=$(cat logs/collection-service.pid)
+    if kill -0 $PID 2>/dev/null; then
+        kill $PID
+        echo -e "${GREEN}✓${NC} Stopped Collection Service (PID: $PID)"
+    fi
+    rm logs/collection-service.pid
+fi
+
 if [ -f logs/gateway.pid ]; then
     PID=$(cat logs/gateway.pid)
     if kill -0 $PID 2>/dev/null; then
@@ -48,8 +66,17 @@ if [ -f logs/gateway.pid ]; then
     rm logs/gateway.pid
 fi
 
+if [ -f logs/backend.pid ]; then
+    PID=$(cat logs/backend.pid)
+    if kill -0 $PID 2>/dev/null; then
+        kill $PID
+        echo -e "${GREEN}✓${NC} Stopped Backend (PID: $PID)"
+    fi
+    rm logs/backend.pid
+fi
+
 # Also kill any remaining node processes on these ports
-for port in 5001 5002 5003 8000; do
+for port in 5001 5002 5003 5004 5005 5006 5010 8000; do
     PID=$(lsof -ti:$port 2>/dev/null)
     if [ ! -z "$PID" ]; then
         kill $PID 2>/dev/null

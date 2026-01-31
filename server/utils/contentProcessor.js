@@ -635,6 +635,7 @@ async function createCardFromSection(section, sourceFileName, filePath = null, s
       category: category,
       tags: tags,
       source: sourceFileName,
+      generatedBy: 'rule-based',
       provenance: {
         location: location,
         snippet: snippet

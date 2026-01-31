@@ -64,6 +64,51 @@ const SnippetHighlightedContent = ({ content, snippet }) => {
   );
 };
 
+// Component to load and display images with authentication
+const AuthenticatedImage = ({ src, alt, className }) => {
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadImage = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(src, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error('Failed to load');
+        const blob = await response.blob();
+        if (!cancelled) {
+          const url = URL.createObjectURL(blob);
+          setBlobUrl(url);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(true);
+          setLoading(false);
+        }
+      }
+    };
+    loadImage();
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src]);
+
+  if (loading) {
+    return <div className={`${className} bg-gray-200 dark:bg-gray-700 animate-pulse`} />;
+  }
+  if (error || !blobUrl) {
+    return <div className={`${className} bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-400 text-xs`}>Failed to load</div>;
+  }
+  return <img src={blobUrl} alt={alt} className={className} />;
+};
+
 const CardDetailModal = ({ 
   card, 
   isOpen, 
@@ -82,6 +127,7 @@ const CardDetailModal = ({
   const [sourceFileError, setSourceFileError] = useState(null);
   const [copiedCardId, setCopiedCardId] = useState(false);
   const [previewHtmlUrl, setPreviewHtmlUrl] = useState(null);
+  const [fileBlobUrl, setFileBlobUrl] = useState(null);
   const iframeRef = useRef(null);
   // Use refs to persist comparison state across re-renders caused by card prop changes
   const comparisonDataRef = useRef(null);
@@ -140,20 +186,27 @@ const CardDetailModal = ({
         URL.revokeObjectURL(previewHtmlUrl);
         setPreviewHtmlUrl(null);
       }
+      if (fileBlobUrl) {
+        URL.revokeObjectURL(fileBlobUrl);
+        setFileBlobUrl(null);
+      }
     }
     // Only reset when modal closes, not when card or other props change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, showComparison]);
 
 
-  // Clean up blob URLs when previewHtmlUrl changes
+  // Clean up blob URLs when previewHtmlUrl or fileBlobUrl changes
   useEffect(() => {
     return () => {
       if (previewHtmlUrl) {
         URL.revokeObjectURL(previewHtmlUrl);
       }
+      if (fileBlobUrl) {
+        URL.revokeObjectURL(fileBlobUrl);
+      }
     };
-  }, [previewHtmlUrl]);
+  }, [previewHtmlUrl, fileBlobUrl]);
 
   // Clean up timeout on unmount
   useEffect(() => {
@@ -197,6 +250,10 @@ const CardDetailModal = ({
         URL.revokeObjectURL(previewHtmlUrl);
         setPreviewHtmlUrl(null);
       }
+      if (fileBlobUrl) {
+        URL.revokeObjectURL(fileBlobUrl);
+        setFileBlobUrl(null);
+      }
       return;
     }
 
@@ -219,16 +276,74 @@ const CardDetailModal = ({
         ? attachment.filename.split('.').pop().toLowerCase() 
         : sourceFileId.split('.').pop()?.toLowerCase() || '';
 
-      // Handle PDF files
+      // Handle PDF files - fetch with auth and create blob URL
       if (fileExtension === 'pdf') {
-        setSourceFileContent('pdf');
+        try {
+          const response = await fetch(`/uploads/${sourceFileId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (response.ok) {
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            setFileBlobUrl(blobUrl);
+            setSourceFileContent('pdf');
+          } else {
+            setSourceFileError('Failed to load PDF file');
+            setSourceFileContent('binary');
+          }
+        } catch (error) {
+          console.error('Error loading PDF:', error);
+          setSourceFileError('Failed to load PDF file');
+          setSourceFileContent('binary');
+        }
         setLoadingSourceFile(false);
         return;
       }
 
-      // Handle image files
+      // Handle image files - fetch with auth and create blob URL
       if (attachment?.mimetype && attachment.mimetype.startsWith('image/')) {
-        setSourceFileContent('image');
+        try {
+          const response = await fetch(`/uploads/${sourceFileId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (response.ok) {
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            setFileBlobUrl(blobUrl);
+            setSourceFileContent('image');
+          } else {
+            setSourceFileError('Failed to load image');
+            setSourceFileContent('binary');
+          }
+        } catch (error) {
+          console.error('Error loading image:', error);
+          setSourceFileError('Failed to load image');
+          setSourceFileContent('binary');
+        }
+        setLoadingSourceFile(false);
+        return;
+      }
+      
+      // Also check file extension for images (in case mimetype is not set)
+      if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(fileExtension)) {
+        try {
+          const response = await fetch(`/uploads/${sourceFileId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (response.ok) {
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            setFileBlobUrl(blobUrl);
+            setSourceFileContent('image');
+          } else {
+            setSourceFileError('Failed to load image');
+            setSourceFileContent('binary');
+          }
+        } catch (error) {
+          console.error('Error loading image:', error);
+          setSourceFileError('Failed to load image');
+          setSourceFileContent('binary');
+        }
         setLoadingSourceFile(false);
         return;
       }
@@ -309,6 +424,10 @@ const CardDetailModal = ({
       URL.revokeObjectURL(previewHtmlUrl);
       setPreviewHtmlUrl(null);
     }
+    if (fileBlobUrl) {
+      URL.revokeObjectURL(fileBlobUrl);
+      setFileBlobUrl(null);
+    }
     onClose();
   };
 
@@ -348,6 +467,8 @@ const CardDetailModal = ({
                         <span className="capitalize">{card.type}</span>
                         <span>•</span>
                         <span>{card.category}</span>
+                        <span>•</span>
+                        <span>{card.generatedBy === 'ai' ? 'AI' : 'Rule-based'}</span>
                         {card.metadata?.rating && (
                           <>
                             <span>•</span>
@@ -452,7 +573,7 @@ const CardDetailModal = ({
                       .filter(att => att.mimetype && att.mimetype.startsWith('image/'))
                       .map((attachment, index) => (
                         <div key={index} className="relative">
-                          <img
+                          <AuthenticatedImage
                             src={`/uploads/${attachment.filename}`}
                             alt={attachment.originalName}
                             className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
@@ -462,6 +583,287 @@ const CardDetailModal = ({
                   </div>
                 </div>
               )}
+
+              {/* Regenerate buttons - directly before Provenance, only when snippet exists */}
+              {card?.provenance?.snippet && onRegenerate && !showComparison && (
+                <div className="mb-4 space-y-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      onClick={async () => {
+                        if (!card) return;
+                        try {
+                          const result = await dispatch(regenerateCardAsync({ 
+                            cardId: card?._id || comparisonData?.ruleBased?._id, 
+                            useAI: false 
+                          })).unwrap();
+                          toast.success('Card regenerated successfully using rule-based');
+                          onRegenerate(result);
+                        } catch (error) {
+                          const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
+                          toast.error(errorMessage);
+                        }
+                      }}
+                      disabled={loading}
+                      className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 active:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors touch-manipulation"
+                      title="Regenerate using rule-based algorithm (fast, deterministic)"
+                    >
+                      {loading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          <span className="text-xs sm:text-sm">Regenerating...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4" />
+                          <span className="text-xs sm:text-sm">Regenerate (Rule-based)</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (isRegeneratingRef.current) return;
+                        if (!card && !comparisonData?.ruleBased) {
+                          toast.error('No card selected');
+                          return;
+                        }
+                        if (!aiStatus.available) {
+                          toast.error(aiStatus.error || 'AI is not available. Please check Ollama configuration.');
+                          return;
+                        }
+                        try {
+                          isRegeneratingRef.current = true;
+                          setLoadingComparison(true);
+                          const timeoutId = setTimeout(() => {
+                            if (loadingComparison) {
+                              toast.error('AI regeneration is taking too long. Please try again.');
+                              setLoadingComparison(false);
+                              setShowComparison(false);
+                              setComparisonData(null);
+                              isRegeneratingRef.current = false;
+                            }
+                          }, 60000);
+                          timeoutRef.current = timeoutId;
+                          const result = await dispatch(regenerateCardAsync({ 
+                            cardId: card?._id || comparisonData?.ruleBased?._id, 
+                            useAI: true,
+                            comparisonMode: true
+                          })).unwrap();
+                          if (timeoutRef.current) {
+                            clearTimeout(timeoutRef.current);
+                            timeoutRef.current = null;
+                          }
+                          if (result && result.comparison === true && result.ruleBased) {
+                            const comparisonDataToSet = {
+                              ruleBased: result.ruleBased,
+                              ai: result.ai || null,
+                              aiError: result.aiError || null
+                            };
+                            if (timeoutRef.current) {
+                              clearTimeout(timeoutRef.current);
+                              timeoutRef.current = null;
+                            }
+                            setLoadingComparison(false);
+                            comparisonDataRef.current = comparisonDataToSet;
+                            showComparisonRef.current = true;
+                            setComparisonData(comparisonDataToSet);
+                            setShowComparison(true);
+                          } else {
+                            if (timeoutRef.current) {
+                              clearTimeout(timeoutRef.current);
+                              timeoutRef.current = null;
+                            }
+                            toast.success('Card regenerated successfully using AI');
+                            onRegenerate(result);
+                            setShowComparison(false);
+                            setComparisonData(null);
+                            setLoadingComparison(false);
+                          }
+                        } catch (error) {
+                          console.error('AI regeneration error:', error);
+                          if (timeoutRef.current) {
+                            clearTimeout(timeoutRef.current);
+                            timeoutRef.current = null;
+                          }
+                          const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
+                          toast.error(errorMessage);
+                          setShowComparison(false);
+                          setComparisonData(null);
+                          setLoadingComparison(false);
+                        } finally {
+                          isRegeneratingRef.current = false;
+                        }
+                      }}
+                      disabled={loading || loadingComparison || !aiStatus.available}
+                      className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 ${
+                        aiStatus.available 
+                          ? 'bg-purple-500 hover:bg-purple-600 active:bg-purple-700' 
+                          : 'bg-gray-400 cursor-not-allowed'
+                      } disabled:bg-gray-400 text-white rounded-lg transition-colors touch-manipulation`}
+                      title={
+                        aiStatus.checking 
+                          ? 'Checking AI availability...'
+                          : aiStatus.available 
+                          ? 'Regenerate using AI and compare with rule-based (requires Ollama)'
+                          : aiStatus.error || 'AI (Ollama) is not available. See tooltip for details.'
+                      }
+                    >
+                      {loading || loadingComparison ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          <span className="text-xs sm:text-sm">Generating comparison...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4" />
+                          <span className="text-xs sm:text-sm">Regenerate (AI)</span>
+                          {!aiStatus.available && !aiStatus.checking && (
+                            <AlertCircle className="h-3 w-3" />
+                          )}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                      Rule-based: Fast and deterministic. AI: Better quality, requires Ollama.
+                    </p>
+                    {aiStatus.checking && (
+                      <p className="text-xs text-blue-500 dark:text-blue-400 text-center">
+                        Checking AI availability...
+                      </p>
+                    )}
+                    {!aiStatus.checking && !aiStatus.available && aiStatus.error && (
+                      <div className="text-xs text-amber-600 dark:text-amber-400 text-center p-2 bg-amber-50 dark:bg-amber-900/20 rounded">
+                        <div className="flex items-center justify-center space-x-1">
+                          <AlertCircle className="h-3 w-3" />
+                          <span className="font-medium">AI Unavailable:</span>
+                        </div>
+                        <span className="block mt-1">{aiStatus.error}</span>
+                      </div>
+                    )}
+                    {!aiStatus.checking && aiStatus.available && (
+                      <p className="text-xs text-green-600 dark:text-green-400 text-center">
+                        ✓ AI (Ollama) is available and ready
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Compare Regeneration Results - shown when AI returns comparison (same level as regenerate buttons) */}
+              {(() => {
+                const shouldShow = showComparison || showComparisonRef.current;
+                const dataToUse = comparisonData || comparisonDataRef.current;
+                if (!showComparison && showComparisonRef.current) {
+                  setTimeout(() => {
+                    setShowComparison(true);
+                    if (comparisonDataRef.current && !comparisonData) {
+                      setComparisonData(comparisonDataRef.current);
+                    }
+                  }, 0);
+                }
+                if (!shouldShow || !dataToUse?.ruleBased) {
+                  return null;
+                }
+                return (
+                  <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 space-y-4">
+                    {loadingComparison ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-4"></div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Generating both versions for comparison...</p>
+                      </div>
+                    ) : comparisonData && dataToUse.ruleBased ? (
+                      <div className="space-y-4">
+                        <div className="text-center">
+                          <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Compare Regeneration Results</h4>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Choose which version to apply to your card</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="border-2 border-green-500 rounded-lg p-4 bg-green-50 dark:bg-green-900/10">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                <h5 className="font-semibold text-green-700 dark:text-green-400">Rule-Based</h5>
+                              </div>
+                              <span className="text-xs bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-1 rounded">Fast</span>
+                            </div>
+                            <div className="space-y-2 text-sm">
+                              <div><span className="font-medium text-gray-700 dark:text-gray-300">Title:</span><p className="text-gray-900 dark:text-white mt-1">{dataToUse.ruleBased?.title || 'N/A'}</p></div>
+                              <div><span className="font-medium text-gray-700 dark:text-gray-300">Content:</span><p className="text-gray-900 dark:text-white mt-1 text-xs line-clamp-4">{dataToUse.ruleBased?.content || 'N/A'}</p></div>
+                              <div><span className="font-medium text-gray-700 dark:text-gray-300">Type:</span><span className="ml-2 text-gray-900 dark:text-white capitalize">{dataToUse.ruleBased?.type || 'N/A'}</span></div>
+                              <div><span className="font-medium text-gray-700 dark:text-gray-300">Category:</span><span className="ml-2 text-gray-900 dark:text-white">{dataToUse.ruleBased?.category || 'N/A'}</span></div>
+                              {dataToUse.ruleBased?.tags && dataToUse.ruleBased.tags.length > 0 && (
+                                <div><span className="font-medium text-gray-700 dark:text-gray-300">Tags:</span><div className="flex flex-wrap gap-1 mt-1">{dataToUse.ruleBased.tags.map((tag, idx) => (<span key={idx} className="text-xs bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-0.5 rounded">{tag}</span>))}</div></div>
+                              )}
+                            </div>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const result = await dispatch(regenerateCardAsync({ cardId: card?._id || comparisonData?.ruleBased?._id || dataToUse?.ruleBased?._id, useAI: true, selectedVersion: 'ruleBased', comparisonData: comparisonData || dataToUse })).unwrap();
+                                  setShowComparison(false); setComparisonData(null); comparisonDataRef.current = null; showComparisonRef.current = false; setLoadingComparison(false);
+                                  toast.success('Card updated with rule-based version');
+                                  setTimeout(() => { if (result && typeof result === 'object') onRegenerate(result); }, 0);
+                                } catch (error) {
+                                  toast.error(typeof error === 'string' ? error : error?.message || 'Failed to apply version');
+                                }
+                              }}
+                              className="w-full mt-4 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors text-sm font-medium"
+                            >Use This Version</button>
+                          </div>
+                          <div className={`border-2 rounded-lg p-4 ${dataToUse.ai ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/10' : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800'}`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center space-x-2">
+                                <div className={`w-3 h-3 rounded-full ${dataToUse.ai ? 'bg-purple-500' : 'bg-gray-400'}`}></div>
+                                <h5 className={`font-semibold ${dataToUse.ai ? 'text-purple-700 dark:text-purple-400' : 'text-gray-500 dark:text-gray-400'}`}>AI-Generated</h5>
+                              </div>
+                              {dataToUse.ai && <span className="text-xs bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-2 py-1 rounded">Smart</span>}
+                            </div>
+                            {dataToUse.ai ? (
+                              <div className="space-y-2 text-sm">
+                                <div><span className="font-medium text-gray-700 dark:text-gray-300">Title:</span><p className="text-gray-900 dark:text-white mt-1">{dataToUse.ai?.title || 'N/A'}</p></div>
+                                <div><span className="font-medium text-gray-700 dark:text-gray-300">Content:</span><p className="text-gray-900 dark:text-white mt-1 text-xs line-clamp-4">{dataToUse.ai?.content || 'N/A'}</p></div>
+                                <div><span className="font-medium text-gray-700 dark:text-gray-300">Type:</span><span className="ml-2 text-gray-900 dark:text-white capitalize">{dataToUse.ai?.type || 'N/A'}</span></div>
+                                <div><span className="font-medium text-gray-700 dark:text-gray-300">Category:</span><span className="ml-2 text-gray-900 dark:text-white">{dataToUse.ai?.category || 'N/A'}</span></div>
+                                {dataToUse.ai?.tags && dataToUse.ai.tags.length > 0 && (
+                                  <div><span className="font-medium text-gray-700 dark:text-gray-300">Tags:</span><div className="flex flex-wrap gap-1 mt-1">{dataToUse.ai.tags.map((tag, idx) => (<span key={idx} className="text-xs bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-2 py-0.5 rounded">{tag}</span>))}</div></div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-center py-4">
+                                <AlertCircle className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{dataToUse.aiError || 'AI regeneration failed'}</p>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Only rule-based version is available</p>
+                              </div>
+                            )}
+                            {dataToUse.ai ? (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const result = await dispatch(regenerateCardAsync({ cardId: card?._id || comparisonData?.ruleBased?._id || dataToUse?.ruleBased?._id, useAI: true, selectedVersion: 'ai', comparisonData: comparisonData || dataToUse })).unwrap();
+                                    setShowComparison(false); setComparisonData(null); comparisonDataRef.current = null; showComparisonRef.current = false; setLoadingComparison(false);
+                                    toast.success('Card updated with AI-generated version');
+                                    setTimeout(() => { if (result && typeof result === 'object') onRegenerate(result); }, 0);
+                                  } catch (error) {
+                                    toast.error(typeof error === 'string' ? error : error?.message || 'Failed to apply version');
+                                  }
+                                }}
+                                className="w-full mt-4 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors text-sm font-medium"
+                              >Use This Version</button>
+                            ) : (
+                              <button disabled className="w-full mt-4 px-4 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed text-sm font-medium">Not Available</button>
+                            )}
+                          </div>
+                        </div>
+                        <button onClick={() => { setShowComparison(false); setComparisonData(null); }} className="w-full px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-sm font-medium">Cancel</button>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No comparison data available</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Provenance */}
               {(() => {
@@ -538,458 +940,6 @@ const CardDetailModal = ({
                           </div>
                         )}
 
-                        {/* Regenerate Card Buttons - Show if snippet exists */}
-                        {card.provenance?.snippet && onRegenerate && !showComparison && (
-                          <div className="pt-3 border-t border-gray-300 dark:border-gray-600 space-y-2">
-                            <div className="flex flex-col sm:flex-row gap-2">
-                              <button
-                                onClick={async () => {
-                                  if (!card) return;
-                                  try {
-                                    const result = await dispatch(regenerateCardAsync({ 
-                                      cardId: card?._id || comparisonData?.ruleBased?._id, 
-                                      useAI: false 
-                                    })).unwrap();
-                                    toast.success('Card regenerated successfully using rule-based');
-                                    onRegenerate(result);
-                                  } catch (error) {
-                                    const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
-                                    toast.error(errorMessage);
-                                  }
-                                }}
-                                disabled={loading}
-                                className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 active:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors touch-manipulation"
-                                title="Regenerate using rule-based algorithm (fast, deterministic)"
-                              >
-                                {loading ? (
-                                  <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                    <span className="text-xs sm:text-sm">Regenerating...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <RefreshCw className="h-4 w-4" />
-                                    <span className="text-xs sm:text-sm">Regenerate (Rule-based)</span>
-                                  </>
-                                )}
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  // Prevent double-clicks
-                                  if (isRegeneratingRef.current) {
-                                    return;
-                                  }
-                                  
-                                  if (!card && !comparisonData?.ruleBased) {
-                                    toast.error('No card selected');
-                                    return;
-                                  }
-                                  if (!aiStatus.available) {
-                                    toast.error(aiStatus.error || 'AI is not available. Please check Ollama configuration.');
-                                    return;
-                                  }
-                                  try {
-                                    isRegeneratingRef.current = true;
-                                    setLoadingComparison(true);
-                                    
-                                    // Add timeout to prevent infinite loading
-                                    const timeoutId = setTimeout(() => {
-                                      if (loadingComparison) {
-                                        toast.error('AI regeneration is taking too long. Please try again.');
-                                        setLoadingComparison(false);
-                                        setShowComparison(false);
-                                        setComparisonData(null);
-                                        isRegeneratingRef.current = false;
-                                      }
-                                    }, 60000); // 60 second timeout
-                                    timeoutRef.current = timeoutId;
-                                    
-                                    const result = await dispatch(regenerateCardAsync({ 
-                                      cardId: card?._id || comparisonData?.ruleBased?._id, 
-                                      useAI: true,
-                                      comparisonMode: true
-                                    })).unwrap();
-                                    
-                                    if (timeoutRef.current) {
-                                      clearTimeout(timeoutRef.current);
-                                      timeoutRef.current = null;
-                                    }
-                                    
-                                    // Backend returns { comparison: true, ruleBased: {...}, ai: {...}, aiError: ... }
-                                    if (result && result.comparison === true && result.ruleBased) {
-                                      const comparisonDataToSet = {
-                                        ruleBased: result.ruleBased,
-                                        ai: result.ai || null,
-                                        aiError: result.aiError || null
-                                      };
-                                      
-                                      // Clear timeout
-                                      if (timeoutRef.current) {
-                                        clearTimeout(timeoutRef.current);
-                                        timeoutRef.current = null;
-                                      }
-                                      
-                                      // Set data first, then show the comparison view
-                                      setLoadingComparison(false);
-                                      // Update refs FIRST and synchronously to persist across re-renders
-                                      comparisonDataRef.current = comparisonDataToSet;
-                                      showComparisonRef.current = true;
-                                      // Then update state
-                                      setComparisonData(comparisonDataToSet);
-                                      setShowComparison(true);
-                                    } else {
-                                      if (timeoutRef.current) {
-                                        clearTimeout(timeoutRef.current);
-                                        timeoutRef.current = null;
-                                      }
-                                      // Fallback: no comparison, just apply directly
-                                      toast.success('Card regenerated successfully using AI');
-                                      onRegenerate(result);
-                                      setShowComparison(false);
-                                      setComparisonData(null);
-                                      setLoadingComparison(false);
-                                    }
-                                  } catch (error) {
-                                    console.error('AI regeneration error:', error);
-                                    if (timeoutRef.current) {
-                                      clearTimeout(timeoutRef.current);
-                                      timeoutRef.current = null;
-                                    }
-                                    const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
-                                    toast.error(errorMessage);
-                                    setShowComparison(false);
-                                    setComparisonData(null);
-                                    setLoadingComparison(false);
-                                  }
-                                }}
-                                disabled={loading || loadingComparison || !aiStatus.available}
-                                className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 ${
-                                  aiStatus.available 
-                                    ? 'bg-purple-500 hover:bg-purple-600 active:bg-purple-700' 
-                                    : 'bg-gray-400 cursor-not-allowed'
-                                } disabled:bg-gray-400 text-white rounded-lg transition-colors touch-manipulation`}
-                                title={
-                                  aiStatus.checking 
-                                    ? 'Checking AI availability...'
-                                    : aiStatus.available 
-                                    ? 'Regenerate using AI and compare with rule-based (requires Ollama)'
-                                    : aiStatus.error || 'AI (Ollama) is not available. See tooltip for details.'
-                                }
-                              >
-                                {loading || loadingComparison ? (
-                                  <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                    <span className="text-xs sm:text-sm">Generating comparison...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <RefreshCw className="h-4 w-4" />
-                                    <span className="text-xs sm:text-sm">Regenerate (AI)</span>
-                                    {!aiStatus.available && !aiStatus.checking && (
-                                      <AlertCircle className="h-3 w-3" />
-                                    )}
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                                Rule-based: Fast and deterministic. AI: Better quality, requires Ollama.
-                              </p>
-                              {aiStatus.checking && (
-                                <p className="text-xs text-blue-500 dark:text-blue-400 text-center">
-                                  Checking AI availability...
-                                </p>
-                              )}
-                              {!aiStatus.checking && !aiStatus.available && aiStatus.error && (
-                                <div className="text-xs text-amber-600 dark:text-amber-400 text-center p-2 bg-amber-50 dark:bg-amber-900/20 rounded">
-                                  <div className="flex items-center justify-center space-x-1">
-                                    <AlertCircle className="h-3 w-3" />
-                                    <span className="font-medium">AI Unavailable:</span>
-                                  </div>
-                                  <span className="block mt-1">{aiStatus.error}</span>
-                                </div>
-                              )}
-                              {!aiStatus.checking && aiStatus.available && (
-                                <p className="text-xs text-green-600 dark:text-green-400 text-center">
-                                  ✓ AI (Ollama) is available and ready
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Comparison View - Show when AI regeneration returns comparison data */}
-                        {/* Use ref value if state is false but ref is true (state was reset but ref persists) */}
-                        {(() => {
-                          const shouldShow = showComparison || showComparisonRef.current;
-                          const dataToUse = comparisonData || comparisonDataRef.current;
-                          
-                          // Restore state from ref if it was reset
-                          if (!showComparison && showComparisonRef.current) {
-                            setTimeout(() => {
-                              setShowComparison(true);
-                              if (comparisonDataRef.current && !comparisonData) {
-                                setComparisonData(comparisonDataRef.current);
-                              }
-                            }, 0);
-                          }
-                          
-                          if (!shouldShow || !dataToUse?.ruleBased) {
-                            return null;
-                          }
-                          
-                          return (
-                            <div className="pt-3 border-t border-gray-300 dark:border-gray-600">
-                            {loadingComparison ? (
-                              <div className="text-center py-8">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-4"></div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
-                                  Generating both versions for comparison...
-                                </p>
-                              </div>
-                            ) : comparisonData && dataToUse.ruleBased ? (
-                              <div className="space-y-4">
-                                {(() => {
-                                  try {
-                                    if (!dataToUse.ruleBased) {
-                                      return <div className="text-red-500 p-4">Error: Rule-based data is missing</div>;
-                                    }
-                                    return (
-                                      <>
-                            <div className="text-center">
-                              <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
-                                Compare Regeneration Results
-                              </h4>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                Choose which version to apply to your card
-                              </p>
-                            </div>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {/* Rule-Based Version */}
-                              <div className="border-2 border-green-500 rounded-lg p-4 bg-green-50 dark:bg-green-900/10">
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center space-x-2">
-                                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                                    <h5 className="font-semibold text-green-700 dark:text-green-400">Rule-Based</h5>
-                                  </div>
-                                  <span className="text-xs bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-1 rounded">Fast</span>
-                                </div>
-                                
-                                <div className="space-y-2 text-sm">
-                                  <div>
-                                    <span className="font-medium text-gray-700 dark:text-gray-300">Title:</span>
-                                    <p className="text-gray-900 dark:text-white mt-1">{dataToUse.ruleBased?.title || 'N/A'}</p>
-                                  </div>
-                                  <div>
-                                    <span className="font-medium text-gray-700 dark:text-gray-300">Content:</span>
-                                    <p className="text-gray-900 dark:text-white mt-1 text-xs line-clamp-4">{dataToUse.ruleBased?.content || 'N/A'}</p>
-                                  </div>
-                                  <div>
-                                    <span className="font-medium text-gray-700 dark:text-gray-300">Type:</span>
-                                    <span className="ml-2 text-gray-900 dark:text-white capitalize">{dataToUse.ruleBased?.type || 'N/A'}</span>
-                                  </div>
-                                  <div>
-                                    <span className="font-medium text-gray-700 dark:text-gray-300">Category:</span>
-                                    <span className="ml-2 text-gray-900 dark:text-white">{dataToUse.ruleBased?.category || 'N/A'}</span>
-                                  </div>
-                                  {dataToUse.ruleBased?.tags && dataToUse.ruleBased.tags.length > 0 && (
-                                    <div>
-                                      <span className="font-medium text-gray-700 dark:text-gray-300">Tags:</span>
-                                      <div className="flex flex-wrap gap-1 mt-1">
-                                        {dataToUse.ruleBased.tags.map((tag, idx) => (
-                                          <span key={idx} className="text-xs bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-0.5 rounded">
-                                            {tag}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      const result = await dispatch(regenerateCardAsync({ 
-                                        cardId: card?._id || comparisonData?.ruleBased?._id || dataToUse?.ruleBased?._id, 
-                                        useAI: true,
-                                        selectedVersion: 'ruleBased',
-                                        comparisonData: comparisonData || dataToUse // Pass the exact comparison data
-                                      })).unwrap();
-                                      
-                                      // Reset comparison state and refs FIRST, then update card
-                                      setShowComparison(false);
-                                      setComparisonData(null);
-                                      comparisonDataRef.current = null;
-                                      showComparisonRef.current = false;
-                                      setLoadingComparison(false);
-                                      
-                                      toast.success('Card updated with rule-based version');
-                                      
-                                      // Wait a tick to ensure state updates are processed, then update card
-                                      setTimeout(() => {
-                                        if (result && typeof result === 'object') {
-                                          onRegenerate(result);
-                                        }
-                                      }, 0);
-                                    } catch (error) {
-                                      const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to apply version';
-                                      toast.error(errorMessage);
-                                    }
-                                  }}
-                                  className="w-full mt-4 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors text-sm font-medium"
-                                >
-                                  Use This Version
-                                </button>
-                              </div>
-
-                              {/* AI Version */}
-                              <div className={`border-2 rounded-lg p-4 ${
-                                dataToUse.ai 
-                                  ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/10' 
-                                  : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800'
-                              }`}>
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center space-x-2">
-                                    <div className={`w-3 h-3 rounded-full ${
-                                      dataToUse.ai ? 'bg-purple-500' : 'bg-gray-400'
-                                    }`}></div>
-                                    <h5 className={`font-semibold ${
-                                      dataToUse.ai 
-                                        ? 'text-purple-700 dark:text-purple-400' 
-                                        : 'text-gray-500 dark:text-gray-400'
-                                    }`}>AI-Generated</h5>
-                                  </div>
-                                  {dataToUse.ai && (
-                                    <span className="text-xs bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-2 py-1 rounded">Smart</span>
-                                  )}
-                                </div>
-                                
-                                {dataToUse.ai ? (
-                                  <div className="space-y-2 text-sm">
-                                    <div>
-                                      <span className="font-medium text-gray-700 dark:text-gray-300">Title:</span>
-                                      <p className="text-gray-900 dark:text-white mt-1">{dataToUse.ai?.title || 'N/A'}</p>
-                                    </div>
-                                    <div>
-                                      <span className="font-medium text-gray-700 dark:text-gray-300">Content:</span>
-                                      <p className="text-gray-900 dark:text-white mt-1 text-xs line-clamp-4">{dataToUse.ai?.content || 'N/A'}</p>
-                                    </div>
-                                    <div>
-                                      <span className="font-medium text-gray-700 dark:text-gray-300">Type:</span>
-                                      <span className="ml-2 text-gray-900 dark:text-white capitalize">{dataToUse.ai?.type || 'N/A'}</span>
-                                    </div>
-                                    <div>
-                                      <span className="font-medium text-gray-700 dark:text-gray-300">Category:</span>
-                                      <span className="ml-2 text-gray-900 dark:text-white">{dataToUse.ai?.category || 'N/A'}</span>
-                                    </div>
-                                    {dataToUse.ai?.tags && dataToUse.ai.tags.length > 0 && (
-                                      <div>
-                                        <span className="font-medium text-gray-700 dark:text-gray-300">Tags:</span>
-                                        <div className="flex flex-wrap gap-1 mt-1">
-                                          {dataToUse.ai.tags.map((tag, idx) => (
-                                            <span key={idx} className="text-xs bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-2 py-0.5 rounded">
-                                              {tag}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="text-center py-4">
-                                    <AlertCircle className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                                      {dataToUse.aiError || 'AI regeneration failed'}
-                                    </p>
-                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                                      Only rule-based version is available
-                                    </p>
-                                  </div>
-                                )}
-                                
-                                {dataToUse.ai ? (
-                                  <button
-                                    onClick={async () => {
-                                      try {
-                                        const result = await dispatch(regenerateCardAsync({ 
-                                          cardId: card?._id || comparisonData?.ruleBased?._id || dataToUse?.ruleBased?._id, 
-                                          useAI: true,
-                                          selectedVersion: 'ai',
-                                          comparisonData: comparisonData || dataToUse // Pass the exact comparison data
-                                        })).unwrap();
-                                        
-                                        // Reset comparison state and refs FIRST, then update card
-                                        setShowComparison(false);
-                                        setComparisonData(null);
-                                        comparisonDataRef.current = null;
-                                        showComparisonRef.current = false;
-                                        setLoadingComparison(false);
-                                        
-                                        toast.success('Card updated with AI-generated version');
-                                        
-                                        // Wait a tick to ensure state updates are processed, then update card
-                                        setTimeout(() => {
-                                          if (result && typeof result === 'object') {
-                                            onRegenerate(result);
-                                          }
-                                        }, 0);
-                                      } catch (error) {
-                                        const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to apply version';
-                                        toast.error(errorMessage);
-                                      }
-                                    }}
-                                    className="w-full mt-4 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors text-sm font-medium"
-                                  >
-                                    Use This Version
-                                  </button>
-                                ) : (
-                                  <button
-                                    disabled
-                                    className="w-full mt-4 px-4 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed text-sm font-medium"
-                                  >
-                                    Not Available
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                            
-                                        <button
-                                          onClick={() => {
-                                            setShowComparison(false);
-                                            setComparisonData(null);
-                                          }}
-                                          className="w-full px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-sm font-medium"
-                                        >
-                                          Cancel
-                                        </button>
-                                      </>
-                                    );
-                                  } catch (error) {
-                                    console.error('Error rendering comparison view:', error);
-                                    return (
-                                      <div className="text-center py-8">
-                                        <p className="text-red-500 dark:text-red-400">Error displaying comparison. Please try again.</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{error.message}</p>
-                                      </div>
-                                    );
-                                  }
-                                })()}
-                              </div>
-                            ) : (
-                              <div className="text-center py-4">
-                                <p className="text-sm text-gray-500 dark:text-gray-400">No comparison data available</p>
-                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                                  comparisonData: {comparisonData ? 'exists' : 'null'}, 
-                                  ruleBased: {comparisonData?.ruleBased ? 'exists' : 'null'}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                          );
-                        })()}
-
                         {/* View Source File Button - Show if there's a file reference */}
                         {(card.attachments?.length > 0 || card.provenance?.source_file_id) && (
                           <div className={`pt-3 ${card.provenance?.snippet ? '' : 'border-t border-gray-300 dark:border-gray-600'}`}>
@@ -1026,15 +976,49 @@ const CardDetailModal = ({
                       <File className="h-4 w-4 flex-shrink-0" />
                       <span className="break-words">Source File: {attachment?.originalName || sourceFileId}</span>
                     </h4>
-                    <a
-                      href={`/uploads/${sourceFileId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center space-x-1 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 text-xs sm:text-sm touch-manipulation"
-                    >
-                      <span>Open in new tab</span>
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
+                    {(fileBlobUrl || previewHtmlUrl) ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Office docs: blob URL can show blank in new tab; write HTML to new window
+                          if (sourceFileContent === 'office' && previewHtmlUrl) {
+                            const win = window.open('', '_blank');
+                            if (win) {
+                              fetch(previewHtmlUrl)
+                                .then(r => r.text())
+                                .then(html => {
+                                  win.document.open();
+                                  win.document.write(html);
+                                  win.document.close();
+                                })
+                                .catch(() => {
+                                  win.document.body.innerHTML = '<p>Failed to load preview.</p>';
+                                });
+                            }
+                          } else if (sourceFileContent === 'pdf' && fileBlobUrl) {
+                            const html = `<!DOCTYPE html><html><head><title>PDF Preview</title><style>body{margin:0;height:100vh}</style></head><body><embed src="${fileBlobUrl}" type="application/pdf" width="100%" height="100%" style="position:absolute;top:0;left:0;border:none" /></body></html>`;
+                            const blob = new Blob([html], { type: 'text/html' });
+                            const htmlUrl = URL.createObjectURL(blob);
+                            window.open(htmlUrl, '_blank');
+                            setTimeout(() => URL.revokeObjectURL(htmlUrl), 5000);
+                          } else if (sourceFileContent === 'image' && fileBlobUrl) {
+                            const html = `<!DOCTYPE html><html><head><title>Image Preview</title><style>body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#1f2937}</style></head><body><img src="${fileBlobUrl}" alt="Preview" style="max-width:100%;max-height:100%;object-fit:contain" /></body></html>`;
+                            const blob = new Blob([html], { type: 'text/html' });
+                            const htmlUrl = URL.createObjectURL(blob);
+                            window.open(htmlUrl, '_blank');
+                            setTimeout(() => URL.revokeObjectURL(htmlUrl), 5000);
+                          } else if (fileBlobUrl) {
+                            window.open(fileBlobUrl, '_blank');
+                          }
+                        }}
+                        className="flex items-center space-x-1 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 text-xs sm:text-sm touch-manipulation cursor-pointer bg-transparent border-none p-0 font-inherit"
+                      >
+                        <span>Open in new tab</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-xs sm:text-sm">Loading...</span>
+                    )}
                   </div>
                   
                   {loadingSourceFile ? (
@@ -1043,11 +1027,17 @@ const CardDetailModal = ({
                     </div>
                   ) : sourceFileContent === 'pdf' ? (
                     <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                      <iframe
-                        src={`/uploads/${sourceFileId}`}
-                        className="w-full h-96"
-                        title="Source file PDF viewer"
-                      />
+                      {fileBlobUrl ? (
+                        <iframe
+                          src={fileBlobUrl}
+                          className="w-full h-96"
+                          title="Source file PDF viewer"
+                        />
+                      ) : (
+                        <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                          <p>Unable to load PDF preview.</p>
+                        </div>
+                      )}
                     </div>
                   ) : sourceFileContent === 'office' ? (
                     <div className="space-y-2">
@@ -1118,11 +1108,17 @@ const CardDetailModal = ({
                     </div>
                   ) : sourceFileContent === 'image' ? (
                     <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                      <img
-                        src={`/uploads/${sourceFileId}`}
-                        alt={attachment?.originalName || 'Source file'}
-                        className="w-full h-auto max-h-96 object-contain"
-                      />
+                      {fileBlobUrl ? (
+                        <img
+                          src={fileBlobUrl}
+                          alt={attachment?.originalName || 'Source file'}
+                          className="w-full h-auto max-h-96 object-contain"
+                        />
+                      ) : (
+                        <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                          <p>Unable to load image preview.</p>
+                        </div>
+                      )}
                     </div>
                   ) : sourceFileContent === 'binary' ? (
                     <div className="text-center py-4 text-gray-500 dark:text-gray-400">

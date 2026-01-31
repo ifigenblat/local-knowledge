@@ -11,8 +11,7 @@ const userSchema = new mongoose.Schema({
     required: true,
     unique: true,
     trim: true,
-    lowercase: true,
-    index: true
+    lowercase: true
   },
   password: {
     type: String,
@@ -56,6 +55,6 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-userSchema.index({ email: 1 });
+// Email index is already created by unique: true, so we don't need to add it again
 
 module.exports = mongoose.model('User', userSchema);

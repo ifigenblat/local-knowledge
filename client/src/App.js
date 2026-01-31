@@ -8,6 +8,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
+import Files from './pages/Files';
 import Cards from './pages/Cards';
 import View from './pages/View';
 import Collections from './pages/Collections';
@@ -57,6 +58,7 @@ const App = () => {
         <Route path="/" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Navigate to="/dashboard" />) : <Navigate to="/login" />} />
         <Route path="/dashboard" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Dashboard /></Layout>) : <Navigate to="/login" />} />
         <Route path="/upload" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Upload /></Layout>) : <Navigate to="/login" />} />
+        <Route path="/files" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Files /></Layout>) : <Navigate to="/login" />} />
         <Route path="/cards" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Cards /></Layout>) : <Navigate to="/login" />} />
         <Route path="/view" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><View /></Layout>) : <Navigate to="/login" />} />
         <Route path="/collections" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Collections /></Layout>) : <Navigate to="/login" />} />

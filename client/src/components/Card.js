@@ -133,10 +133,15 @@ const Card = ({ card, onEdit, onDelete, onReview, onRate, className = '', disabl
 
             {/* Card Footer */}
             <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white dark:from-gray-800 to-transparent">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                  {card.category}
-                </span>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                    {card.category}
+                  </span>
+                  <span className={`text-xs px-2 py-1 rounded ${card.generatedBy === 'ai' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                    {card.generatedBy === 'ai' ? 'AI' : 'Rule-based'}
+                  </span>
+                </div>
                 <span className="text-xs text-gray-400 dark:text-gray-500">
                   Click to view full content
                 </span>

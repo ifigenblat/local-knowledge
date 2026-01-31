@@ -22,7 +22,16 @@
    - ✅ Permission management
    - ✅ Repository pattern implemented
 
-4. **API Gateway** (Port 8000)
+4. **Card Service** (Port 5004)
+   - ✅ Card CRUD operations
+   - ✅ Card list with filters (type, category, search) and pagination
+   - ✅ Get by ID or cardId (sharing)
+   - ✅ Create, update, delete
+   - ✅ PATCH review and rate
+   - ✅ GET by category/type
+   - ✅ POST /:id/regenerate proxied to backend (content + AI)
+
+5. **API Gateway** (Port 8000)
    - ✅ JWT validation
    - ✅ Request routing
    - ✅ Service health monitoring
@@ -80,9 +89,9 @@ curl http://localhost:8000/api/users -H "Authorization: Bearer $TOKEN"
 ## 📝 Next Steps
 
 1. Initialize roles in database
-2. Test end-to-end flow
-3. Add remaining services (Card, Collection, Upload)
-4. Update frontend to use API Gateway
+2. Test end-to-end flow (cards now on card-service)
+3. Add remaining services (Collection, Upload, Content Processing, AI, Email)
+4. Frontend uses API Gateway (cards proxied to card-service)
 5. Add monitoring and logging
 
 ## 🔄 Ready for PostgreSQL Migration

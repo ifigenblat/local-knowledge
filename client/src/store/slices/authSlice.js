@@ -50,7 +50,7 @@ export const loadUser = createAsyncThunk(
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        throw new Error('No token found');
+        return rejectWithValue(null); // Not logged in, no user-facing error
       }
 
       const response = await axios.get('/api/auth/me', {
@@ -61,10 +61,13 @@ export const loadUser = createAsyncThunk(
       
       return response.data;
     } catch (error) {
-      // Remove invalid token
+      // Remove invalid or expired token
       localStorage.removeItem('token');
+      // Don't set a user-facing error for expected "not logged in" cases (401, no token, network)
+      const status = error.response?.status;
+      const isExpected = status === 401 || status === 403 || !error.response;
       return rejectWithValue(
-        error.response?.data?.error || 'Failed to load user'
+        isExpected ? null : (error.response?.data?.error || 'Failed to load user')
       );
     }
   }
@@ -207,7 +210,8 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.user = null;
         state.token = null;
-        state.error = action.payload;
+        // Only set error for unexpected failures (null = no token / 401, don't show "Failed to load user")
+        if (action.payload) state.error = action.payload;
       })
       
       // Logout

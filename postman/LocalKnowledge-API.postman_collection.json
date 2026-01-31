@@ -1,0 +1,661 @@
+{
+  "info": {
+    "name": "LocalKnowledge API",
+    "description": "API requests for LocalKnowledge (via API Gateway on port 8000). Cards and collections are served by the Card and Collection microservices (ports 5004, 5005).\n\n**Setup:**\n1. Import this collection and the environment `LocalKnowledge - Local`.\n2. Select the environment in Postman.\n3. Run **Auth > Login** with valid credentials; the token is saved automatically.\n4. All other requests use the token from the environment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000" },
+    { "key": "token", "value": "" },
+    { "key": "collection_id", "value": "" },
+    { "key": "card_id", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Gateway",
+      "item": [
+        {
+          "name": "Root",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/",
+            "description": "Gateway info and available endpoints"
+          }
+        },
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/health",
+            "description": "Gateway health check"
+          }
+        },
+        {
+          "name": "Services Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/services/health",
+            "description": "Health of all proxied services (auth, user, role, cards, collections, upload, backend)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/register",
+            "description": "Register a new user. No token required."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const token = json.token || json.accessToken || json.access_token;",
+                  "  if (token) {",
+                  "    pm.collectionVariables.set('token', token);",
+                  "    if (json.user && json.user.id) pm.collectionVariables.set('user_id', json.user.id);",
+                  "    try { pm.environment.set('token', token); if (json.user && json.user.id) pm.environment.set('user_id', json.user.id); } catch (e) {}",
+                  "    console.log('Token saved. Use another request (e.g. Validate Token) to test.');",
+                  "  } else {",
+                  "    console.log('No token in response. Body: ' + pm.response.text());",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@localknowledge.local\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/login",
+            "description": "Login. Saves token and user_id to environment automatically."
+          }
+        },
+        {
+          "name": "Validate Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/validate",
+            "description": "Validate current token and return user. Requires Authorization: Bearer {{token}}."
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@localknowledge.local\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/forgot-password",
+            "description": "Request password reset email. No token required."
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"<reset-token-from-email>\",\n  \"newPassword\": \"newpassword123\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/reset-password",
+            "description": "Reset password with token from email. No auth required."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/users",
+            "description": "List users (query: page, limit, search)"
+          }
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/users/{{user_id}}",
+            "description": "Get user by ID"
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New User\",\n  \"email\": \"newuser@example.com\",\n  \"password\": \"password123\",\n  \"roleId\": \"{{role_id}}\"\n}"
+            },
+            "url": "{{base_url}}/api/users",
+            "description": "Create user (admin). roleId optional."
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"email\": \"updated@example.com\"\n}"
+            },
+            "url": "{{base_url}}/api/users/{{user_id}}",
+            "description": "Update user by ID"
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/users/{{user_id}}",
+            "description": "Delete user by ID"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Roles",
+      "item": [
+        {
+          "name": "List Roles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/roles",
+            "description": "List all roles"
+          }
+        },
+        {
+          "name": "Get Role",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/roles/{{role_id}}",
+            "description": "Get role by ID"
+          }
+        },
+        {
+          "name": "Get Role by Name",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/roles/name/admin",
+            "description": "Get role by name (admin, user, etc.)"
+          }
+        },
+        {
+          "name": "Get Role Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/roles/{{role_id}}/users",
+            "description": "List users assigned to this role"
+          }
+        },
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"editor\",\n  \"displayName\": \"Editor\",\n  \"permissions\": { \"cards\": true, \"collections\": true }\n}"
+            },
+            "url": "{{base_url}}/api/roles",
+            "description": "Create role (admin)"
+          }
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"editor\",\n  \"displayName\": \"Editor\",\n  \"permissions\": { \"cards\": true, \"collections\": true, \"users\": false }\n}"
+            },
+            "url": "{{base_url}}/api/roles/{{role_id}}",
+            "description": "Update role by ID"
+          }
+        },
+        {
+          "name": "Delete Role",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/roles/{{role_id}}",
+            "description": "Delete role by ID"
+          }
+        },
+        {
+          "name": "Assign Role",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{user_id}}\"\n}"
+            },
+            "url": "{{base_url}}/api/roles/{{role_id}}/assign",
+            "description": "Assign role to user"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cards",
+      "item": [
+        {
+          "name": "List Cards",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/cards?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "cards"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "type", "value": "concept", "disabled": true },
+                { "key": "category", "value": "", "disabled": true },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            },
+            "description": "List cards for current user. Query: page, limit, type, category, search."
+          }
+        },
+        {
+          "name": "Get Cards Count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/cards/count",
+              "host": ["{{base_url}}"],
+              "path": ["api", "cards", "count"],
+              "query": [
+                { "key": "type", "value": "concept", "disabled": true },
+                { "key": "category", "value": "", "disabled": true },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "source", "value": "", "disabled": true },
+                { "key": "sourceFileType", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Return number of cards for the logged-in user. Optional query: type, category, search, source, sourceFileType (same filters as List Cards). Response: { count: number }."
+          }
+        },
+        {
+          "name": "Get Card",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/cards/{{card_id}}",
+            "description": "Get card by ID or 6-char cardId"
+          }
+        },
+        {
+          "name": "Get Cards by Category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/cards/category/General",
+            "description": "Get cards in a category"
+          }
+        },
+        {
+          "name": "Get Cards by Type",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/cards/type/concept",
+            "description": "Get cards by type (concept, action, quote, checklist, mindmap)"
+          }
+        },
+        {
+          "name": "Create Card",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json._id) pm.environment.set('card_id', json._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Test Card\",\n  \"content\": \"Card content here.\",\n  \"type\": \"concept\",\n  \"category\": \"General\",\n  \"tags\": [\"test\"],\n  \"source\": \"\",\n  \"isPublic\": false\n}"
+            },
+            "url": "{{base_url}}/api/cards",
+            "description": "Create card. Saves card_id to environment on success."
+          }
+        },
+        {
+          "name": "Update Card",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Title\",\n  \"content\": \"Updated content.\",\n  \"type\": \"concept\",\n  \"category\": \"General\",\n  \"tags\": [\"updated\"]\n}"
+            },
+            "url": "{{base_url}}/api/cards/{{card_id}}",
+            "description": "Update card by ID"
+          }
+        },
+        {
+          "name": "Delete Card",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/cards/{{card_id}}",
+            "description": "Delete card by ID"
+          }
+        },
+        {
+          "name": "Update Review",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "" },
+            "url": "{{base_url}}/api/cards/{{card_id}}/review",
+            "description": "Mark card as reviewed (updates lastReviewed, reviewCount)"
+          }
+        },
+        {
+          "name": "Rate Card",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 4\n}"
+            },
+            "url": "{{base_url}}/api/cards/{{card_id}}/rate",
+            "description": "Rate card 1–5"
+          }
+        },
+        {
+          "name": "Regenerate Card",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"useAI\": false,\n  \"comparisonMode\": false\n}"
+            },
+            "url": "{{base_url}}/api/cards/{{card_id}}/regenerate",
+            "description": "Regenerate card content (proxied to backend; may require AI/backend)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Collections",
+      "item": [
+        {
+          "name": "List Collections",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/collections",
+            "description": "List collections for current user"
+          }
+        },
+        {
+          "name": "Get Collection",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/collections/{{collection_id}}",
+            "description": "Get collection by ID with populated cards"
+          }
+        },
+        {
+          "name": "Create Collection",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json._id) { pm.collectionVariables.set('collection_id', json._id); try { pm.environment.set('collection_id', json._id); } catch (e) {} }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Collection\",\n  \"description\": \"Optional description\",\n  \"cards\": [],\n  \"isPublic\": false\n}"
+            },
+            "url": "{{base_url}}/api/collections",
+            "description": "Create collection. Saves collection_id on success."
+          }
+        },
+        {
+          "name": "Update Collection",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"description\": \"Updated description\",\n  \"isPublic\": false\n}"
+            },
+            "url": "{{base_url}}/api/collections/{{collection_id}}",
+            "description": "Update collection by ID"
+          }
+        },
+        {
+          "name": "Delete Collection",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/collections/{{collection_id}}",
+            "description": "Delete collection by ID"
+          }
+        },
+        {
+          "name": "Add Card to Collection",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardId\": \"{{card_id}}\"\n}"
+            },
+            "url": "{{base_url}}/api/collections/{{collection_id}}/cards",
+            "description": "Add a card to the collection"
+          }
+        },
+        {
+          "name": "Remove Card from Collection",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/collections/{{collection_id}}/cards/{{card_id}}",
+            "description": "Remove card from collection"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Upload",
+      "item": [
+        {
+          "name": "Upload File",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "", "description": "Select a file" }
+              ]
+            },
+            "url": "{{base_url}}/api/upload",
+            "description": "Upload single file (multipart/form-data). Handled by Upload Service (port 5006); backend (5010) processes file and creates cards."
+          }
+        },
+        {
+          "name": "Upload Multiple",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "files", "type": "file", "src": [], "description": "Select up to 5 files" }
+              ]
+            },
+            "url": "{{base_url}}/api/upload/multiple",
+            "description": "Upload up to 5 files. Handled by Upload Service (port 5006); backend processes each file."
+          }
+        },
+        {
+          "name": "Upload Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/upload/progress/{{upload_progress_id}}",
+            "description": "Get upload progress by job ID. Set upload_progress_id in environment."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Files",
+      "item": [
+        {
+          "name": "List Files",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/files?page=1&limit=20&search=",
+              "host": ["{{base_url}}"],
+              "path": ["api", "files"],
+              "query": [
+                { "key": "page", "value": "1", "description": "Page number (1-based)" },
+                { "key": "limit", "value": "20", "description": "Items per page (max 100)" },
+                { "key": "search", "value": "", "description": "Search by filename or original name" }
+              ]
+            },
+            "description": "List uploaded files for the current user with pagination and search. Query params: page, limit, search. Backend on 5010."
+          }
+        },
+        {
+          "name": "Delete File",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/files/{{upload_filename}}",
+            "description": "Delete an uploaded file and all associated cards. Set upload_filename (e.g. file-1234567890-123456789.pdf) in environment. Backend on 5010."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Preview",
+      "item": [
+        {
+          "name": "Preview File",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/preview/{{upload_filename}}",
+            "description": "Preview uploaded file (e.g. DOCX→HTML, PDF, images). Set upload_filename in environment (e.g. filename.pdf). Backend on 5010."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Uploads (static)",
+      "item": [
+        {
+          "name": "Get Uploaded File",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/uploads/{{upload_filename}}",
+            "description": "Get static uploaded file by path/filename. Backend serves from /uploads."
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI",
+      "item": [
+        {
+          "name": "AI Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/ai/status",
+            "description": "Check AI/Ollama status. Backend must be running."
+          }
+        }
+      ]
+    }
+  ]
+}

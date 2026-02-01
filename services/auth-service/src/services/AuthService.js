@@ -121,12 +121,34 @@ class AuthService {
       resetTokenExpires
     );
 
-    // Send email via email service (will implement later)
-    // For now, return token in response (dev only)
-    if (process.env.NODE_ENV === 'development') {
+    // Send email via email service if configured
+    const emailServiceUrl = process.env.EMAIL_SERVICE_URL;
+    if (emailServiceUrl) {
+      try {
+        const baseUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+        const response = await axios.post(`${emailServiceUrl.replace(/\/$/, '')}/send-password-reset`, {
+          email: user.email,
+          resetToken,
+          baseUrl,
+        });
+        if (!response.data?.success && !response.data?.development) {
+          console.warn('Email service returned:', response.data);
+        }
+      } catch (emailError) {
+        console.error('Failed to send password reset email:', emailError.message);
+        // In dev, fall through to return token
+        if (process.env.NODE_ENV === 'development') {
+          return {
+            message: 'Password reset token generated (email failed)',
+            token: resetToken,
+            expires: resetTokenExpires
+          };
+        }
+      }
+    } else if (process.env.NODE_ENV === 'development') {
       return {
         message: 'Password reset token generated',
-        token: resetToken, // Only in dev
+        token: resetToken,
         expires: resetTokenExpires
       };
     }

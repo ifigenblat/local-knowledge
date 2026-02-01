@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchCards, fetchCardsCount, deleteCardAsync, updateCardAsync, regenerateCardAsync } from '../store/slices/cardSlice';
 import { toast } from 'react-hot-toast';
-import { Search, Loader2, X, Star, BookOpen, Target, Quote, CheckSquare, Network } from 'lucide-react';
+import { Search, BookOpen, Target, Quote, CheckSquare, Network } from 'lucide-react';
 import Card from '../components/Card';
 import CardDetailModal from '../components/CardDetailModal';
 
@@ -30,8 +30,6 @@ const View = () => {
   const [appliedSearch, setAppliedSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
-  const [sourceFilter, setSourceFilter] = useState('');
-  const [appliedSourceFilter, setAppliedSourceFilter] = useState('');
   const [selectedSourceFileType, setSelectedSourceFileType] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -58,14 +56,6 @@ const View = () => {
     }, 400);
     return () => clearTimeout(t);
   }, [searchTerm]);
-  // Debounce source filter
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setAppliedSourceFilter(sourceFilter.trim());
-      setCurrentPage(1);
-    }, 400);
-    return () => clearTimeout(t);
-  }, [sourceFilter]);
 
   // Fetch cards and count with server-side pagination and filters
   useEffect(() => {
@@ -73,12 +63,11 @@ const View = () => {
       search: appliedSearch || undefined,
       type: filterType !== 'all' ? filterType : undefined,
       category: filterCategory !== 'all' ? filterCategory : undefined,
-      source: appliedSourceFilter || undefined,
       sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
     };
     dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
     dispatch(fetchCardsCount(filters));
-  }, [currentPage, pageSize, appliedSearch, appliedSourceFilter, filterType, filterCategory, selectedSourceFileType, dispatch]);
+  }, [currentPage, pageSize, appliedSearch, filterType, filterCategory, selectedSourceFileType, dispatch]);
 
   const handleDeleteCard = async (cardId) => {
     // Show confirmation dialog
@@ -134,7 +123,7 @@ const View = () => {
       setShowEditModal(false);
       setEditingCard(null);
       // Refresh cards to get updated data
-      dispatch(fetchCards({ page: currentPage, limit: pageSize, search: appliedSearch || undefined, type: filterType !== 'all' ? filterType : undefined, category: filterCategory !== 'all' ? filterCategory : undefined }));
+      dispatch(fetchCards({ page: currentPage, limit: pageSize, search: appliedSearch || undefined, type: filterType !== 'all' ? filterType : undefined, category: filterCategory !== 'all' ? filterCategory : undefined, sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined }));
     } catch (error) {
       toast.error(error || 'Failed to update card');
     }
@@ -146,7 +135,7 @@ const View = () => {
     if (typeof regeneratedCard === 'object' && regeneratedCard !== null) {
       // Card object passed from CardDetailModal
       setSelectedCard(regeneratedCard);
-      dispatch(fetchCards({ page: currentPage, limit: pageSize, search: appliedSearch || undefined, type: filterType !== 'all' ? filterType : undefined, category: filterCategory !== 'all' ? filterCategory : undefined, source: appliedSourceFilter || undefined, sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined }));
+      dispatch(fetchCards({ page: currentPage, limit: pageSize, search: appliedSearch || undefined, type: filterType !== 'all' ? filterType : undefined, category: filterCategory !== 'all' ? filterCategory : undefined, sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined }));
     } else {
       // Legacy: useAI boolean parameter (shouldn't happen from CardDetailModal)
       const useAI = regeneratedCard === true;
@@ -156,7 +145,7 @@ const View = () => {
         const result = await dispatch(regenerateCardAsync({ cardId: selectedCard._id, useAI })).unwrap();
         toast.success(`Card regenerated successfully ${useAI ? 'using AI' : 'using rule-based'}`);
         setSelectedCard(result);
-        dispatch(fetchCards({ page: currentPage, limit: pageSize, search: appliedSearch || undefined, type: filterType !== 'all' ? filterType : undefined, category: filterCategory !== 'all' ? filterCategory : undefined, source: appliedSourceFilter || undefined, sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined }));
+        dispatch(fetchCards({ page: currentPage, limit: pageSize, search: appliedSearch || undefined, type: filterType !== 'all' ? filterType : undefined, category: filterCategory !== 'all' ? filterCategory : undefined, sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined }));
       } catch (error) {
         const errorMessage = typeof error === 'string' ? error : error?.message || 'Failed to regenerate card';
         toast.error(errorMessage);
@@ -254,7 +243,7 @@ const View = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search cards..."
+                placeholder="Search cards, content, or source (filename)..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
@@ -294,17 +283,6 @@ const View = () => {
                 <option key={category} value={category}>{category}</option>
               ))}
             </select>
-          </div>
-
-          {/* Source (filename) */}
-          <div className="sm:w-40">
-            <input
-              type="text"
-              placeholder="Source (filename)"
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-            />
           </div>
 
           {/* Source file type */}

@@ -1,0 +1,20 @@
+{
+  "name": "email-service",
+  "version": "1.0.0",
+  "description": "Email microservice for LocalKnowledge - password reset and transactional emails",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test:endpoints": "node test-email-endpoints.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "nodemailer": "^7.0.12"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

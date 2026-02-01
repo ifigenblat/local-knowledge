@@ -5,46 +5,49 @@
 ### Services Created
 
 1. **Auth Service** (Port 5001)
-   - ✅ User registration
-   - ✅ User login with JWT
-   - ✅ Token validation
-   - ✅ Password reset flow
-   - ✅ Repository pattern implemented
+   - ✅ User registration, login, JWT, token validation, password reset
 
 2. **User Service** (Port 5002)
-   - ✅ User CRUD operations
-   - ✅ User search and filtering
-   - ✅ Role assignment
-   - ✅ Repository pattern implemented
+   - ✅ User CRUD, search, role assignment
 
 3. **Role Service** (Port 5003)
-   - ✅ Role CRUD operations
-   - ✅ Permission management
-   - ✅ Repository pattern implemented
+   - ✅ Role CRUD, permission management
 
 4. **Card Service** (Port 5004)
-   - ✅ Card CRUD operations
-   - ✅ Card list with filters (type, category, search) and pagination
-   - ✅ Get by ID or cardId (sharing)
-   - ✅ Create, update, delete
-   - ✅ PATCH review and rate
-   - ✅ GET by category/type
-   - ✅ POST /:id/regenerate proxied to backend (content + AI)
+   - ✅ Card CRUD, filters, pagination, regenerate (proxied to backend for AI)
+   - ✅ POST /from-processed-file – create cards from upload (called by upload-service)
 
-5. **API Gateway** (Port 8000)
-   - ✅ JWT validation
-   - ✅ Request routing
-   - ✅ Service health monitoring
-   - ✅ Error handling
+5. **Collection Service** (Port 5005)
+   - ✅ Collection CRUD, add/remove cards
+
+6. **Upload Service** (Port 5006)
+   - ✅ File upload, orchestrates content-processing + card-service (no backend)
+
+7. **Content Processing Service** (Port 5007)
+   - ✅ Extract content from files (PDF, DOCX, XLSX, etc.)
+
+8. **AI Service** (Port 5008)
+   - ✅ Ollama integration for card regeneration
+
+9. **Email Service** (Port 5009)
+   - ✅ Password reset emails (MailHog, SMTP)
+
+10. **Preview Service** (Port 5011)
+    - ✅ File preview (DOCX→HTML, XLSX→HTML, PDF, images)
+
+11. **Files Service** (Port 5012)
+    - ✅ List uploaded files, delete file and associated cards
+
+12. **API Gateway** (Port 8000)
+    - ✅ JWT validation, routing, health checks
+
+### Uploads Static Service (Port 5013)
+
+- Serves static `/uploads` files. Backend retired; all features in microservices.
 
 ### Infrastructure
 
-- ✅ Repository pattern base class
-- ✅ Shared database connection module
-- ✅ Environment configuration
-- ✅ Start/stop scripts
-- ✅ Test script
-- ✅ Docker Compose configuration
+- ✅ Start/stop scripts, test scripts, Postman collection
 
 ## 🧪 Testing Instructions
 
@@ -88,11 +91,8 @@ curl http://localhost:8000/api/users -H "Authorization: Bearer $TOKEN"
 
 ## 📝 Next Steps
 
-1. Initialize roles in database
-2. Test end-to-end flow (cards now on card-service)
-3. Add remaining services (Collection, Upload, Content Processing, AI, Email)
-4. Frontend uses API Gateway (cards proxied to card-service)
-5. Add monitoring and logging
+1. Production hardening (secrets, TLS)
+2. Optional: Prometheus + Grafana dashboards
 
 ## 🔄 Ready for PostgreSQL Migration
 

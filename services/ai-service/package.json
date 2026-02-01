@@ -1,0 +1,19 @@
+{
+  "name": "ai-service",
+  "version": "1.0.0",
+  "description": "AI microservice for LocalKnowledge - Ollama-powered card regeneration",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test:endpoints": "node test-ai-endpoints.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

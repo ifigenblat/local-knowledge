@@ -10,13 +10,11 @@ import {
   Eye,
   Edit,
   Trash2,
-  Share2,
   Image as ImageIcon
 } from 'lucide-react';
 import ImageZoomViewer from './ImageZoomViewer';
 
 const Card = ({ card, onEdit, onDelete, onReview, onRate, className = '', disableDefaultModal = false, onCardClick }) => {
-  const [isFlipped, setIsFlipped] = useState(false);
   const [rating, setRating] = useState(card.metadata?.rating || 0);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showFullModal, setShowFullModal] = useState(false);

@@ -1,5 +1,7 @@
 const CardRepository = require('../repositories/CardRepository');
+const Card = require('../models/Card');
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 function isValidObjectId(id) {
   if (id == null) return false;
@@ -34,19 +36,22 @@ class CardService {
     const query = {};
     if (type) query.type = type;
     if (category) query.category = category;
-    // Use regex instead of $text so we don't require a text index on the collection
-    if (search && typeof search === 'string' && search.trim()) {
-      const term = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      query.$or = [
-        { title: { $regex: term, $options: 'i' } },
-        { content: { $regex: term, $options: 'i' } },
-        { tags: { $regex: term, $options: 'i' } }
-      ];
-    }
-    // Filter by source (partial match on card.source)
-    if (source && typeof source === 'string' && source.trim()) {
-      const escaped = source.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      query.source = { $regex: escaped, $options: 'i' };
+    // Search across card content AND source/filename (combined) - partial match, any word matches
+    const searchTerm = (search && typeof search === 'string' && search.trim()) ? search.trim() : null;
+    const sourceTerm = (source && typeof source === 'string' && source.trim()) ? source.trim() : null;
+    const term = searchTerm || sourceTerm;
+    if (term) {
+      const words = term.split(/\s+/).filter(w => w.length > 0);
+      const fieldList = ['title', 'content', 'tags', 'source', 'attachments.originalName', 'attachments.filename', 'provenance.source_file_id', 'provenance.source_path'];
+      const buildRegexOr = (word) => {
+        const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return { $or: fieldList.map(f => ({ [f]: { $regex: escaped, $options: 'i' } })) };
+      };
+      if (words.length > 1) {
+        query.$or = words.map(w => buildRegexOr(w));
+      } else {
+        Object.assign(query, buildRegexOr(words[0]));
+      }
     }
     // Filter by source file type (extension or mimetype: pdf, docx, txt, etc.)
     if (sourceFileType && typeof sourceFileType === 'string' && sourceFileType.trim()) {
@@ -103,17 +108,21 @@ class CardService {
     const query = {};
     if (type) query.type = type;
     if (category) query.category = category;
-    if (search && typeof search === 'string' && search.trim()) {
-      const term = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      query.$or = [
-        { title: { $regex: term, $options: 'i' } },
-        { content: { $regex: term, $options: 'i' } },
-        { tags: { $regex: term, $options: 'i' } }
-      ];
-    }
-    if (source && typeof source === 'string' && source.trim()) {
-      const escaped = source.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      query.source = { $regex: escaped, $options: 'i' };
+    const searchTerm = (search && typeof search === 'string' && search.trim()) ? search.trim() : null;
+    const sourceTerm = (source && typeof source === 'string' && source.trim()) ? source.trim() : null;
+    const term = searchTerm || sourceTerm;
+    if (term) {
+      const words = term.split(/\s+/).filter(w => w.length > 0);
+      const fieldList = ['title', 'content', 'tags', 'source', 'attachments.originalName', 'attachments.filename', 'provenance.source_file_id', 'provenance.source_path'];
+      const buildRegexOr = (word) => {
+        const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return { $or: fieldList.map(f => ({ [f]: { $regex: escaped, $options: 'i' } })) };
+      };
+      if (words.length > 1) {
+        query.$or = words.map(w => buildRegexOr(w));
+      } else {
+        Object.assign(query, buildRegexOr(words[0]));
+      }
     }
     if (sourceFileType && typeof sourceFileType === 'string' && sourceFileType.trim()) {
       const ext = sourceFileType.trim().toLowerCase().replace(/^\./, '');
@@ -200,6 +209,70 @@ class CardService {
     card.metadata.rating = rating;
     await card.save();
     return card;
+  }
+
+  /** Generate content hash for duplicate detection */
+  generateContentHash(title, content) {
+    const s = `${(title || '').toLowerCase().trim()}-${(content || '').toLowerCase().trim()}`;
+    return crypto.createHash('sha256').update(s).digest('hex');
+  }
+
+  /** Create or update card from processed upload item (called by upload-service) */
+  async createOrUpdateFromProcessedItem(cardData, userId, file, fileHash, fileId) {
+    const contentHash = this.generateContentHash(cardData.title, cardData.content);
+    const existingCard = contentHash ? await Card.findDuplicate(contentHash, userId) : null;
+
+    const provenance = {
+      source_file_id: fileId || file.filename,
+      source_path: file.path,
+      file_hash: fileHash,
+      location: cardData.provenance?.location || null,
+      snippet: cardData.provenance?.snippet || null,
+      model_name: cardData.provenance?.model_name || null,
+      prompt_version: cardData.provenance?.prompt_version || '1.0',
+      confidence_score: cardData.provenance?.confidence_score || null,
+    };
+
+    if (existingCard) {
+      existingCard.attachments = existingCard.attachments || [];
+      existingCard.attachments.push({
+        filename: file.filename,
+        originalName: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        path: file.path,
+      });
+      if (!existingCard.source?.includes(file.originalname)) {
+        existingCard.source = existingCard.source ? `${existingCard.source}, ${file.originalname}` : file.originalname;
+      }
+      if (!existingCard.provenance?.source_file_id) {
+        existingCard.provenance = provenance;
+      }
+      await existingCard.save();
+      return { card: existingCard, isDuplicate: true };
+    }
+
+    const card = new Card({
+      title: cardData.title,
+      content: cardData.content,
+      contentHash,
+      type: cardData.type || 'concept',
+      category: cardData.category || 'General',
+      tags: cardData.tags || [],
+      source: file.originalname,
+      user: userId,
+      generatedBy: cardData.generatedBy || 'rule-based',
+      attachments: [{
+        filename: file.filename,
+        originalName: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        path: file.path,
+      }],
+      provenance,
+    });
+    await card.save();
+    return { card, isDuplicate: false };
   }
 }
 

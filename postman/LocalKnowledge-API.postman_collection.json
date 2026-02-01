@@ -8,7 +8,8 @@
     { "key": "base_url", "value": "http://localhost:8000" },
     { "key": "token", "value": "" },
     { "key": "collection_id", "value": "" },
-    { "key": "card_id", "value": "" }
+    { "key": "card_id", "value": "" },
+    { "key": "upload_filename", "value": "", "description": "Stored filename (e.g. file-1234567890-123.pdf). Get from Files > List Files." }
   ],
   "auth": {
     "type": "bearer",
@@ -554,7 +555,7 @@
               ]
             },
             "url": "{{base_url}}/api/upload",
-            "description": "Upload single file (multipart/form-data). Handled by Upload Service (port 5006); backend (5010) processes file and creates cards."
+            "description": "Upload single file (multipart/form-data). Upload Service (5006) extracts content via Content Processing (5007) and creates cards via Card Service (5004)."
           }
         },
         {
@@ -569,7 +570,7 @@
               ]
             },
             "url": "{{base_url}}/api/upload/multiple",
-            "description": "Upload up to 5 files. Handled by Upload Service (port 5006); backend processes each file."
+            "description": "Upload up to 5 files. Upload Service (5006) extracts content via Content Processing Service (5007) and creates cards via Card Service (5004)."
           }
         },
         {
@@ -579,6 +580,15 @@
             "header": [],
             "url": "{{base_url}}/api/upload/progress/{{upload_progress_id}}",
             "description": "Get upload progress by job ID. Set upload_progress_id in environment."
+          }
+        },
+        {
+          "name": "Get Uploaded File",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/uploads/{{upload_filename}}",
+            "description": "Get raw uploaded file by filename. Set upload_filename (e.g. file-1234567890-123.pdf). Get filenames from Files > List Files or after uploading. Returns file bytes; use Preview for HTML conversion of docs."
           }
         }
       ]
@@ -601,7 +611,7 @@
                 { "key": "search", "value": "", "description": "Search by filename or original name" }
               ]
             },
-            "description": "List uploaded files for the current user with pagination and search. Query params: page, limit, search. Backend on 5010."
+            "description": "List uploaded files for the current user with pagination and search. Query params: page, limit, search. Files Service on 5012."
           }
         },
         {
@@ -610,7 +620,49 @@
             "method": "DELETE",
             "header": [],
             "url": "{{base_url}}/api/files/{{upload_filename}}",
-            "description": "Delete an uploaded file and all associated cards. Set upload_filename (e.g. file-1234567890-123456789.pdf) in environment. Backend on 5010."
+            "description": "Delete an uploaded file and all associated cards. Set upload_filename (e.g. file-1234567890-123456789.pdf) in environment. Files Service on 5012."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Content Processing",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/content/health",
+            "description": "Content Processing Service health. Proxied to port 5007."
+          }
+        },
+        {
+          "name": "Process (by file path)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filePath\": \"/absolute/path/to/server/uploads/your-file.pdf\",\n  \"originalName\": \"your-file.pdf\",\n  \"filename\": \"file-1234567890-123.pdf\"\n}"
+            },
+            "url": "{{base_url}}/api/content/process",
+            "description": "Extract content from a file by path. Used by Upload Service. filePath must be absolute and readable by the service. Returns { items: [...] }."
+          }
+        },
+        {
+          "name": "Extract (upload file)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "", "description": "Select a file (PDF, DOCX, XLSX, TXT, etc.)" }
+              ]
+            },
+            "url": "{{base_url}}/api/content/extract",
+            "description": "Upload a file and get extracted content items. Returns { items: [...] }. Content Processing Service on 5007."
           }
         }
       ]
@@ -619,26 +671,21 @@
       "name": "Preview",
       "item": [
         {
+          "name": "Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/preview/status",
+            "description": "Check preview service status. Returns { configured, uploadDir, uploadDirExists, message }. Preview Service on 5011. Requires auth."
+          }
+        },
+        {
           "name": "Preview File",
           "request": {
             "method": "GET",
             "header": [],
             "url": "{{base_url}}/api/preview/{{upload_filename}}",
-            "description": "Preview uploaded file (e.g. DOCX→HTML, PDF, images). Set upload_filename in environment (e.g. filename.pdf). Backend on 5010."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Uploads (static)",
-      "item": [
-        {
-          "name": "Get Uploaded File",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{base_url}}/uploads/{{upload_filename}}",
-            "description": "Get static uploaded file by path/filename. Backend serves from /uploads."
+            "description": "Preview uploaded file (DOCX→HTML, XLSX→HTML, PDF, images, TXT/MD/JSON). Set upload_filename in environment (e.g. file-123.pdf). Preview Service on 5011."
           }
         }
       ]
@@ -652,7 +699,47 @@
             "method": "GET",
             "header": [],
             "url": "{{base_url}}/api/ai/status",
-            "description": "Check AI/Ollama status. Backend must be running."
+            "description": "Check Ollama availability and configuration. AI Service on 5008. Set OLLAMA_ENABLED=true and run 'ollama serve' for AI features."
+          }
+        },
+        {
+          "name": "Regenerate (AI)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"snippet\": \"Effective leadership requires clear communication and the ability to inspire teams toward common goals.\",\n  \"sourceFileName\": \"example.txt\"\n}"
+            },
+            "url": "{{base_url}}/api/ai/regenerate",
+            "description": "Generate card data from a text snippet using Ollama. Returns { title, content, type, category, tags, ... }. Requires Ollama running with OLLAMA_ENABLED=true."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Email",
+      "item": [
+        {
+          "name": "Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/email/status",
+            "description": "Check if email service is configured. Returns { configured, message }. Email Service on 5009."
+          }
+        },
+        {
+          "name": "Send Password Reset (test)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"resetToken\": \"test-token-123\",\n  \"baseUrl\": \"http://localhost:3000\"\n}"
+            },
+            "url": "{{base_url}}/api/email/send-password-reset",
+            "description": "Send a password reset email. For testing only. Requires auth. In production, Auth service calls this internally for forgot-password."
           }
         }
       ]

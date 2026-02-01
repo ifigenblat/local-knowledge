@@ -186,25 +186,48 @@ npm start
 
 ### Microservices + Frontend
 
-To run the API Gateway, auth/user/role services, **backend (cards, collections, upload)**, and frontend:
+To run all microservices and the API Gateway:
 
 ```bash
-# Terminal 1 - All services (gateway, auth, user, role, backend on port 5010)
+# Terminal 1 - All microservices (auth, user, role, cards, collections, upload, content, AI, email, preview, files, uploads-static, gateway)
 cd services
 ./start-all.sh
 
-# Terminal 2 - Frontend (must be started in a separate terminal)
+# Terminal 2 - Frontend
 cd client
 npm start
 ```
 
-Or from repo root: `npm run dev:microservices` (starts all services then frontend in one terminal). Ensure MongoDB is running first (`docker start mongodb` or `docker run -d -p 27017:27017 mongo:7`). The backend (monolith server on port 5010) serves cards, collections, upload, and preview; the gateway proxies these to it.
+Or from repo root: `npm run dev:microservices` (starts all services then frontend). Ensure MongoDB is running first (`docker start mongodb` or `docker run -d -p 27017:27017 mongo:7`).
 
-**If you see "Backend unavailable" or "Error loading cards"**: the backend (cards server) must be running on port 5010. **Open a new terminal** and run:
+**Services** (all proxied via API Gateway on port 8000):
+| Service | Port | Description |
+|---------|------|-------------|
+| Auth | 5001 | Login, register, password reset |
+| User | 5002 | User CRUD |
+| Role | 5003 | Role & permission management |
+| Card | 5004 | Card CRUD, regenerate |
+| Collection | 5005 | Collection CRUD |
+| Upload | 5006 | File upload (→ content + card services) |
+| Content Processing | 5007 | Extract content from files |
+| AI | 5008 | Ollama-based card regeneration |
+| Email | 5009 | Password reset emails |
+| Preview | 5011 | File preview (DOCX→HTML, PDF, etc.) |
+| Files | 5012 | List/delete uploaded files |
+| Uploads Static | 5013 | Serve static uploaded files |
+
+**Observability**: `GET /health`, `GET /services/health`, `GET /metrics` (Prometheus format)
+
+**Testing**: `cd services && ./test-services.sh` or `node test-integration-upload-files.js`
+
+### Docker (All Services)
+
 ```bash
-npm run backend
+cd services
+docker-compose up -d
 ```
-Leave that terminal open. Or use `cd services && ./start-all.sh` (which starts the backend too). See `services/TROUBLESHOOTING.md` for more.
+
+Starts MongoDB + all microservices. See `services/docker-compose.yml` for configuration.
 
 ## Project Structure
 

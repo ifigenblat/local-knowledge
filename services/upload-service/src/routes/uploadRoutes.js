@@ -5,7 +5,8 @@ const fs = require('fs');
 
 const router = express.Router();
 
-const BACKEND_URL = process.env.BACKEND_SERVICE_URL || 'http://localhost:5010';
+const CONTENT_SERVICE_URL = process.env.CONTENT_SERVICE_URL || 'http://localhost:5007';
+const CARD_SERVICE_URL = process.env.CARD_SERVICE_URL || 'http://localhost:5004';
 
 // Upload directory: backend must be able to read (default: repo/server/uploads)
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), '..', '..', 'server', 'uploads');
@@ -63,7 +64,7 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-// Single file: save then POST to backend for processing
+// Single file: save, extract via content-service, create cards via card-service
 router.post('/', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -71,35 +72,75 @@ router.post('/', upload.single('file'), async (req, res) => {
     }
     const file = req.file;
     const userId = req.user.id;
-    const body = {
-      filePath: path.resolve(file.path),
+    const filePath = path.resolve(file.path);
+
+    // 1. Extract content via content-processing-service
+    let processedContent;
+    try {
+      const contentRes = await fetch(`${CONTENT_SERVICE_URL.replace(/\/$/, '')}/process`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filePath,
+          originalName: file.originalname,
+          filename: file.filename,
+          mimetype: file.mimetype,
+        }),
+      });
+      const contentData = await contentRes.json().catch(() => ({}));
+      if (!contentRes.ok) {
+        throw new Error(contentData.message || contentData.error || `Content service ${contentRes.status}`);
+      }
+      processedContent = contentData.items || [];
+    } catch (err) {
+      if (fs.existsSync(file.path)) {
+        try { fs.unlinkSync(file.path); } catch (_) {}
+      }
+      return res.status(502).json({
+        error: 'Content extraction failed',
+        message: err.message,
+        service: 'upload-service',
+      });
+    }
+
+    if (!processedContent || processedContent.length === 0) {
+      if (fs.existsSync(file.path)) {
+        try { fs.unlinkSync(file.path); } catch (_) {}
+      }
+      return res.status(400).json({ error: 'No content could be extracted from the file' });
+    }
+
+    // 2. Create cards via card-service
+    const cardBody = {
+      filePath,
       originalName: file.originalname,
       filename: file.filename,
       size: file.size,
       mimetype: file.mimetype,
+      items: processedContent,
       category: req.body.category,
       tags: req.body.tags,
       model_name: req.body.model_name,
       prompt_version: req.body.prompt_version,
       confidence_score: req.body.confidence_score,
     };
-    const response = await fetch(`${BACKEND_URL}/api/upload/process-uploaded-file`, {
+    const cardRes = await fetch(`${CARD_SERVICE_URL.replace(/\/$/, '')}/api/cards/from-processed-file`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-User-Id': userId,
         'X-User-Email': req.user.email || '',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(cardBody),
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      if (req.file && fs.existsSync(req.file.path)) {
-        try { fs.unlinkSync(req.file.path); } catch (_) {}
+    const data = await cardRes.json().catch(() => ({}));
+    if (!cardRes.ok) {
+      if (fs.existsSync(file.path)) {
+        try { fs.unlinkSync(file.path); } catch (_) {}
       }
-      return res.status(response.status).json(data);
+      return res.status(cardRes.status).json(data);
     }
-    res.status(response.status).json(data);
+    res.status(cardRes.status).json(data);
   } catch (error) {
     if (req.file && fs.existsSync(req.file.path)) {
       try { fs.unlinkSync(req.file.path); } catch (_) {}
@@ -112,7 +153,7 @@ router.post('/', upload.single('file'), async (req, res) => {
   }
 });
 
-// Multiple files: save each then POST each to backend, aggregate results
+// Multiple files: save each, extract, create cards
 router.post('/multiple', upload.array('files', 5), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
@@ -122,29 +163,51 @@ router.post('/multiple', upload.array('files', 5), async (req, res) => {
     const results = [];
     for (const file of req.files) {
       try {
-        const body = {
-          filePath: path.resolve(file.path),
-          originalName: file.originalname,
-          filename: file.filename,
-          size: file.size,
-          mimetype: file.mimetype,
-          category: req.body.category,
-          tags: req.body.tags,
-          model_name: req.body.model_name,
-          prompt_version: req.body.prompt_version,
-          confidence_score: req.body.confidence_score,
-        };
-        const response = await fetch(`${BACKEND_URL}/api/upload/process-uploaded-file`, {
+        const filePath = path.resolve(file.path);
+        const contentRes = await fetch(`${CONTENT_SERVICE_URL.replace(/\/$/, '')}/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filePath,
+            originalName: file.originalname,
+            filename: file.filename,
+            mimetype: file.mimetype,
+          }),
+        });
+        const contentData = await contentRes.json().catch(() => ({}));
+        const processedContent = contentRes.ok ? (contentData.items || []) : [];
+
+        if (processedContent.length === 0) {
+          if (fs.existsSync(file.path)) {
+            try { fs.unlinkSync(file.path); } catch (_) {}
+          }
+          results.push({ file: file.originalname, success: false, error: 'No content extracted' });
+          continue;
+        }
+
+        const cardRes = await fetch(`${CARD_SERVICE_URL.replace(/\/$/, '')}/api/cards/from-processed-file`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-User-Id': userId,
             'X-User-Email': req.user.email || '',
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify({
+            filePath,
+            originalName: file.originalname,
+            filename: file.filename,
+            size: file.size,
+            mimetype: file.mimetype,
+            items: processedContent,
+            category: req.body.category,
+            tags: req.body.tags,
+            model_name: req.body.model_name,
+            prompt_version: req.body.prompt_version,
+            confidence_score: req.body.confidence_score,
+          }),
         });
-        const data = await response.json().catch(() => ({}));
-        if (response.ok) {
+        const data = await cardRes.json().catch(() => ({}));
+        if (cardRes.ok) {
           results.push({
             file: file.originalname,
             success: true,
@@ -154,18 +217,20 @@ router.post('/multiple', upload.array('files', 5), async (req, res) => {
             cards: data.cards || [],
           });
         } else {
+          if (fs.existsSync(file.path)) {
+            try { fs.unlinkSync(file.path); } catch (_) {}
+          }
           results.push({
             file: file.originalname,
             success: false,
-            error: data.error || data.message || response.statusText,
+            error: data.error || data.message || cardRes.statusText,
           });
         }
       } catch (err) {
-        results.push({
-          file: file.originalname,
-          success: false,
-          error: err.message,
-        });
+        if (fs.existsSync(file.path)) {
+          try { fs.unlinkSync(file.path); } catch (_) {}
+        }
+        results.push({ file: file.originalname, success: false, error: err.message });
       }
     }
     res.status(201).json({

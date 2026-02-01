@@ -62,6 +62,147 @@ services:
     networks:
       - microservices-network
 
+  card-service:
+    build:
+      context: .
+      dockerfile: card-service/Dockerfile
+    container_name: card-service
+    ports:
+      - "5004:5004"
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/local-knowledge
+      BACKEND_SERVICE_URL: http://host.docker.internal:5010
+      PORT: 5004
+    depends_on:
+      - mongodb
+    networks:
+      - microservices-network
+
+  collection-service:
+    build:
+      context: .
+      dockerfile: collection-service/Dockerfile
+    container_name: collection-service
+    ports:
+      - "5005:5005"
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/local-knowledge
+      PORT: 5005
+    depends_on:
+      - mongodb
+    networks:
+      - microservices-network
+
+  upload-service:
+    build:
+      context: .
+      dockerfile: upload-service/Dockerfile
+    container_name: upload-service
+    ports:
+      - "5006:5006"
+    environment:
+      CONTENT_SERVICE_URL: http://content-processing-service:5007
+      CARD_SERVICE_URL: http://card-service:5004
+      UPLOAD_DIR: /app/uploads
+      PORT: 5006
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      - content-processing-service
+      - card-service
+    networks:
+      - microservices-network
+
+  content-processing-service:
+    build:
+      context: .
+      dockerfile: content-processing-service/Dockerfile
+    container_name: content-processing-service
+    ports:
+      - "5007:5007"
+    environment:
+      UPLOAD_DIR: /app/uploads
+      PORT: 5007
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - microservices-network
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: ai-service/Dockerfile
+    container_name: ai-service
+    ports:
+      - "5008:5008"
+    environment:
+      OLLAMA_API_URL: ${OLLAMA_API_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama2}
+      OLLAMA_ENABLED: ${OLLAMA_ENABLED:-false}
+      PORT: 5008
+    networks:
+      - microservices-network
+
+  email-service:
+    build:
+      context: .
+      dockerfile: email-service/Dockerfile
+    container_name: email-service
+    ports:
+      - "5009:5009"
+    environment:
+      PORT: 5009
+    networks:
+      - microservices-network
+
+  preview-service:
+    build:
+      context: .
+      dockerfile: preview-service/Dockerfile
+    container_name: preview-service
+    ports:
+      - "5011:5011"
+    environment:
+      UPLOAD_DIR: /app/uploads
+      PORT: 5011
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - microservices-network
+
+  files-service:
+    build:
+      context: ./files-service
+      dockerfile: Dockerfile
+    container_name: files-service
+    ports:
+      - "5012:5012"
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/local-knowledge
+      UPLOAD_DIR: /app/uploads
+      PORT: 5012
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      - mongodb
+    networks:
+      - microservices-network
+
+  uploads-static-service:
+    build:
+      context: .
+      dockerfile: uploads-static-service/Dockerfile
+    container_name: uploads-static-service
+    ports:
+      - "5013:5013"
+    environment:
+      UPLOAD_DIR: /app/uploads
+      PORT: 5013
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - microservices-network
+
   api-gateway:
     build:
       context: ./gateway
@@ -73,17 +214,30 @@ services:
       AUTH_SERVICE_URL: http://auth-service:5001
       USER_SERVICE_URL: http://user-service:5002
       ROLE_SERVICE_URL: http://role-service:5003
+      CARD_SERVICE_URL: http://card-service:5004
+      COLLECTION_SERVICE_URL: http://collection-service:5005
+      UPLOAD_SERVICE_URL: http://upload-service:5006
+      CONTENT_SERVICE_URL: http://content-processing-service:5007
+      AI_SERVICE_URL: http://ai-service:5008
+      EMAIL_SERVICE_URL: http://email-service:5009
+      PREVIEW_SERVICE_URL: http://preview-service:5011
+      FILES_SERVICE_URL: http://files-service:5012
+      UPLOADS_STATIC_SERVICE_URL: http://uploads-static-service:5013
       JWT_SECRET: ${JWT_SECRET:-your-secret-key}
       PORT: 8000
     depends_on:
       - auth-service
       - user-service
       - role-service
+      - card-service
+      - collection-service
+      - upload-service
     networks:
       - microservices-network
 
 volumes:
   mongodb_data:
+  uploads_data:
 
 networks:
   microservices-network:

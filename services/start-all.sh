@@ -101,6 +101,78 @@ cd ..
 
 sleep 2
 
+# Content Processing Service
+echo -e "${YELLOW}Starting Content Processing Service...${NC}"
+if [ ! -d content-processing-service/node_modules ]; then
+    echo -e "  ${YELLOW}Installing content-processing-service dependencies...${NC}"
+    (cd content-processing-service && npm install)
+fi
+cd content-processing-service
+PORT=5007 npm start > ../logs/content-processing-service.log 2>&1 &
+CONTENT_PID=$!
+echo "  Content Processing Service PID: $CONTENT_PID (port 5007)"
+cd ..
+
+sleep 2
+
+# AI Service
+echo -e "${YELLOW}Starting AI Service...${NC}"
+if [ ! -d ai-service/node_modules ]; then
+    echo -e "  ${YELLOW}Installing ai-service dependencies...${NC}"
+    (cd ai-service && npm install)
+fi
+cd ai-service
+PORT=5008 npm start > ../logs/ai-service.log 2>&1 &
+AI_PID=$!
+echo "  AI Service PID: $AI_PID (port 5008)"
+cd ..
+
+sleep 2
+
+# Email Service
+echo -e "${YELLOW}Starting Email Service...${NC}"
+if [ ! -d email-service/node_modules ]; then
+    echo -e "  ${YELLOW}Installing email-service dependencies...${NC}"
+    (cd email-service && npm install)
+fi
+cd email-service
+PORT=5009 npm start > ../logs/email-service.log 2>&1 &
+EMAIL_PID=$!
+echo "  Email Service PID: $EMAIL_PID (port 5009)"
+cd ..
+
+sleep 2
+
+# Files Service
+echo -e "${YELLOW}Starting Files Service...${NC}"
+if [ ! -d files-service/node_modules ]; then
+    echo -e "  ${YELLOW}Installing files-service dependencies...${NC}"
+    (cd files-service && npm install)
+fi
+SCRIPT_DIR_FILES="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT_FILES="$(cd "$SCRIPT_DIR_FILES/.." && pwd)"
+cd files-service
+PORT=5012 UPLOAD_DIR="$PROJECT_ROOT_FILES/server/uploads" npm start > ../logs/files-service.log 2>&1 &
+FILES_PID=$!
+echo "  Files Service PID: $FILES_PID (port 5012)"
+cd ..
+
+sleep 2
+
+# Preview Service
+echo -e "${YELLOW}Starting Preview Service...${NC}"
+if [ ! -d preview-service/node_modules ]; then
+    echo -e "  ${YELLOW}Installing preview-service dependencies...${NC}"
+    (cd preview-service && npm install)
+fi
+cd preview-service
+PORT=5011 UPLOAD_DIR="$PROJECT_ROOT_FILES/server/uploads" npm start > ../logs/preview-service.log 2>&1 &
+PREVIEW_PID=$!
+echo "  Preview Service PID: $PREVIEW_PID (port 5011)"
+cd ..
+
+sleep 2
+
 # API Gateway
 echo -e "${YELLOW}Starting API Gateway...${NC}"
 cd gateway
@@ -111,13 +183,27 @@ cd ..
 
 sleep 2
 
-# Backend (monolith: upload, preview, AI - cards on card-service, collections on collection-service)
-echo -e "${YELLOW}Starting Backend (collections, upload, preview, AI)...${NC}"
+# Backend (card regenerate - rule-based + AI; card-service proxies to it)
+echo -e "${YELLOW}Starting Backend (regenerate only)...${NC}"
 cd ../server
 PORT=5010 npm run dev > ../services/logs/backend.log 2>&1 &
 BACKEND_PID=$!
-echo "  Backend PID: $BACKEND_PID (port 5010)"
+echo "  Backend PID: $BACKEND_PID (port 5010 - regenerate)"
 cd ../services
+
+sleep 2
+
+# Uploads Static Service (serves /uploads files)
+echo -e "${YELLOW}Starting Uploads Static Service...${NC}"
+if [ ! -d uploads-static-service/node_modules ]; then
+    echo -e "  ${YELLOW}Installing uploads-static-service dependencies...${NC}"
+    (cd uploads-static-service && npm install)
+fi
+cd uploads-static-service
+PORT=5013 UPLOAD_DIR="$PROJECT_ROOT_FILES/server/uploads" npm start > ../logs/uploads-static-service.log 2>&1 &
+UPLOADS_STATIC_PID=$!
+echo "  Uploads Static Service PID: $UPLOADS_STATIC_PID (port 5013)"
+cd ..
 
 # Save PIDs
 echo "$AUTH_PID" > logs/auth-service.pid
@@ -126,8 +212,14 @@ echo "$ROLE_PID" > logs/role-service.pid
 echo "$CARD_PID" > logs/card-service.pid
 echo "$COLLECTION_PID" > logs/collection-service.pid
 echo "$UPLOAD_PID" > logs/upload-service.pid
+echo "$CONTENT_PID" > logs/content-processing-service.pid
+echo "$AI_PID" > logs/ai-service.pid
+echo "$EMAIL_PID" > logs/email-service.pid
+echo "$FILES_PID" > logs/files-service.pid
+echo "$PREVIEW_PID" > logs/preview-service.pid
 echo "$GATEWAY_PID" > logs/gateway.pid
 echo "$BACKEND_PID" > logs/backend.pid
+echo "$UPLOADS_STATIC_PID" > logs/uploads-static-service.pid
 
 sleep 3
 
@@ -142,8 +234,14 @@ echo "  - Role Service:    http://localhost:5003"
 echo "  - Card Service:    http://localhost:5004"
 echo "  - Collection Service: http://localhost:5005"
 echo "  - Upload Service:     http://localhost:5006"
+echo "  - Content Processing Service: http://localhost:5007"
+echo "  - AI Service:      http://localhost:5008"
+echo "  - Email Service:   http://localhost:5009"
+echo "  - Preview Service: http://localhost:5011"
+echo "  - Files Service:   http://localhost:5012"
 echo "  - API Gateway:     http://localhost:8000"
-echo "  - Backend:         http://localhost:5010 (preview, AI, process-uploaded-file)"
+echo "  - Backend:         http://localhost:5010 (regenerate)"
+echo "  - Uploads Static:  http://localhost:5013 (static /uploads)"
 echo ""
 echo "Logs:"
 echo "  - Auth Service:    services/logs/auth-service.log"
@@ -152,8 +250,14 @@ echo "  - Role Service:    services/logs/role-service.log"
 echo "  - Card Service:    services/logs/card-service.log"
 echo "  - Collection Service: services/logs/collection-service.log"
 echo "  - Upload Service:     services/logs/upload-service.log"
+echo "  - Content Processing Service: services/logs/content-processing-service.log"
+echo "  - AI Service:      services/logs/ai-service.log"
+echo "  - Email Service:   services/logs/email-service.log"
+echo "  - Files Service:   services/logs/files-service.log"
+echo "  - Preview Service: services/logs/preview-service.log"
 echo "  - API Gateway:     services/logs/gateway.log"
 echo "  - Backend:         services/logs/backend.log"
+echo "  - Uploads Static:  services/logs/uploads-static-service.log"
 echo ""
 echo "To stop all services: ./stop-all.sh"
 echo "To test services: ./test-services.sh"

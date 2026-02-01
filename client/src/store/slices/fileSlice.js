@@ -3,11 +3,12 @@ import axios from 'axios';
 
 export const fetchFiles = createAsyncThunk(
   'files/fetchFiles',
-  async ({ page = 1, limit = 20, search } = {}, { rejectWithValue }) => {
+  async ({ page = 1, limit = 20, search, typeFilter, sortBy, sortOrder } = {}, { rejectWithValue }) => {
     try {
       const token = localStorage.getItem('token');
-      const params = { page, limit };
+      const params = { page, limit, sortBy: sortBy || 'name', sortOrder: sortOrder || 'asc', _: Date.now() };
       if (search) params.search = search;
+      if (typeFilter) params.typeFilter = typeFilter;
       const response = await axios.get('/api/files', {
         headers: { Authorization: `Bearer ${token}` },
         params,
@@ -68,7 +69,27 @@ const fileSlice = createSlice({
       })
       .addCase(fetchFiles.fulfilled, (state, action) => {
         state.loading = false;
-        state.files = action.payload.files || action.payload;
+        let files = action.payload.files || action.payload;
+        const { sortBy = 'name', sortOrder = 'asc' } = action.meta?.arg || {};
+        const order = sortOrder === 'desc' ? -1 : 1;
+        files = [...files].sort((a, b) => {
+          if (sortBy === 'type') {
+            const cmp = (a.fileType || '').localeCompare(b.fileType || '');
+            return cmp * order;
+          }
+          if (sortBy === 'date') {
+            const aDate = a.uploadedAt || '';
+            const bDate = b.uploadedAt || '';
+            return aDate.localeCompare(bDate) * order;
+          }
+          const cmp = (a.originalName || a.filename || '').localeCompare(
+            b.originalName || b.filename || '',
+            undefined,
+            { sensitivity: 'base' }
+          );
+          return cmp * order;
+        });
+        state.files = files;
         if (action.payload.pagination) {
           state.pagination = { ...state.pagination, ...action.payload.pagination };
         }

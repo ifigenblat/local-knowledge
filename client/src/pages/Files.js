@@ -3,10 +3,26 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { fetchFiles, deleteFileAsync } from '../store/slices/fileSlice';
 import { fetchCards } from '../store/slices/cardSlice';
-import { Trash2, FileText, Search, FolderOpen, AlertTriangle } from 'lucide-react';
+import { Trash2, FileText, Search, FolderOpen, AlertTriangle, ArrowUp, ArrowDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100];
+
+const TYPE_FILTER_OPTIONS = [
+  { value: '', label: 'All types' },
+  { value: 'pdf', label: 'PDF' },
+  { value: 'docx', label: 'Word (DOCX)' },
+  { value: 'doc', label: 'Word (DOC)' },
+  { value: 'xlsx', label: 'Excel (XLSX)' },
+  { value: 'xls', label: 'Excel (XLS)' },
+  { value: 'txt', label: 'Text (TXT)' },
+  { value: 'md', label: 'Markdown (MD)' },
+  { value: 'json', label: 'JSON' },
+  { value: 'png', label: 'PNG' },
+  { value: 'jpg', label: 'JPG' },
+  { value: 'jpeg', label: 'JPEG' },
+  { value: 'gif', label: 'GIF' },
+];
 
 const Files = () => {
   const dispatch = useDispatch();
@@ -15,6 +31,9 @@ const Files = () => {
   const [appliedSearch, setAppliedSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [typeFilter, setTypeFilter] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   // Debounce search
@@ -26,14 +45,17 @@ const Files = () => {
     return () => clearTimeout(t);
   }, [searchTerm]);
 
-  // Fetch files with pagination and search
+  // Fetch files with pagination, search, and sort
   useEffect(() => {
     dispatch(fetchFiles({
       page: currentPage,
       limit: pageSize,
       search: appliedSearch || undefined,
+      typeFilter: typeFilter || undefined,
+      sortBy,
+      sortOrder,
     }));
-  }, [currentPage, pageSize, appliedSearch, dispatch]);
+  }, [currentPage, pageSize, appliedSearch, typeFilter, sortBy, sortOrder, dispatch]);
 
   const handleDeleteClick = (file) => {
     setDeleteConfirm(file);
@@ -56,6 +78,9 @@ dispatch(fetchFiles({
           page: nextPage,
           limit: pageSize,
           search: appliedSearch || undefined,
+          typeFilter: typeFilter || undefined,
+          sortBy,
+          sortOrder,
         }));
     } catch (err) {
       toast.error(err || 'Failed to delete file');
@@ -77,7 +102,7 @@ dispatch(fetchFiles({
 
       <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         {/* Search and filters */}
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
@@ -87,6 +112,18 @@ dispatch(fetchFiles({
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Type:</label>
+            <select
+              value={typeFilter}
+              onChange={(e) => { setTypeFilter(e.target.value); setCurrentPage(1); }}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {TYPE_FILTER_OPTIONS.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
           </div>
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Per page:</label>
@@ -112,6 +149,62 @@ dispatch(fetchFiles({
           </Link>
         </div>
 
+        {/* Sort - below search row with arrows */}
+        <div className="flex items-center gap-2 mb-6">
+          <span className="text-sm text-gray-600 dark:text-gray-400">Sort by:</span>
+          <button
+            type="button"
+            onClick={() => {
+              setSortBy('name');
+              setSortOrder(sortBy === 'name' ? (sortOrder === 'asc' ? 'desc' : 'asc') : 'asc');
+              setCurrentPage(1);
+            }}
+            className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${sortBy === 'name' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+          >
+            Name
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSortBy('type');
+              setSortOrder(sortBy === 'type' ? (sortOrder === 'asc' ? 'desc' : 'asc') : 'asc');
+              setCurrentPage(1);
+            }}
+            className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${sortBy === 'type' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+          >
+            Type
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSortBy('date');
+              setSortOrder(sortBy === 'date' ? (sortOrder === 'asc' ? 'desc' : 'asc') : 'desc');
+              setCurrentPage(1);
+            }}
+            className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${sortBy === 'date' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+          >
+            Date
+          </button>
+          <div className="flex items-center gap-0.5 ml-2">
+            <button
+              type="button"
+              onClick={() => { setSortOrder('asc'); setCurrentPage(1); }}
+              className={`p-1.5 rounded border transition-colors ${sortOrder === 'asc' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              title="Ascending (A–Z)"
+            >
+              <ArrowUp className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSortOrder('desc'); setCurrentPage(1); }}
+              className={`p-1.5 rounded border transition-colors ${sortOrder === 'desc' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              title="Descending (Z–A)"
+            >
+              <ArrowDown className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
         {error && (
           <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
             {error}
@@ -127,11 +220,11 @@ dispatch(fetchFiles({
           <div className="py-12 text-center text-gray-500 dark:text-gray-400">
             <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p className="text-sm">
-              {appliedSearch
-                ? 'No files match your search.'
+              {appliedSearch || typeFilter
+                ? 'No files match your search or filter.'
                 : 'No uploaded files yet.'}
             </p>
-            {!appliedSearch && (
+            {!appliedSearch && !typeFilter && (
               <Link
                 to="/upload"
                 className="inline-flex items-center gap-2 mt-3 text-blue-600 dark:text-blue-400 hover:underline"
@@ -157,6 +250,9 @@ dispatch(fetchFiles({
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                         {file.cardCount} card{file.cardCount !== 1 ? 's' : ''} created
+                        {file.uploadedAt && (
+                          <> · Uploaded {new Date(file.uploadedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</>
+                        )}
                       </p>
                     </div>
                   </div>

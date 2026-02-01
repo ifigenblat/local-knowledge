@@ -16,14 +16,27 @@ const SERVICES = {
   cards: process.env.CARD_SERVICE_URL || 'http://localhost:5004',
   collections: process.env.COLLECTION_SERVICE_URL || 'http://localhost:5005',
   upload: process.env.UPLOAD_SERVICE_URL || 'http://localhost:5006',
-  // Monolith backend: preview, AI, process-uploaded-file (upload receives files, backend processes)
-  backend: process.env.BACKEND_SERVICE_URL || 'http://localhost:5010',
+  content: process.env.CONTENT_SERVICE_URL || 'http://localhost:5007',
+  ai: process.env.AI_SERVICE_URL || 'http://localhost:5008',
+  email: process.env.EMAIL_SERVICE_URL || 'http://localhost:5009',
+  preview: process.env.PREVIEW_SERVICE_URL || 'http://localhost:5011',
+  files: process.env.FILES_SERVICE_URL || 'http://localhost:5012',
+  uploadsStatic: process.env.UPLOADS_STATIC_SERVICE_URL || 'http://localhost:5013',
 };
 
 // Middleware: do NOT use express.json() / urlencoded globally - they consume the
-// request body stream, so proxied POST/PUT requests would have an empty body
-// and cause socket hang up or 400 on the backend. Proxy streams the raw request.
+// request body stream, so proxied POST/PUT requests would have an empty body.
 app.use(cors());
+
+// Request logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const entry = { ts: new Date().toISOString(), method: req.method, path: req.path, status: res.statusCode, ms: Date.now() - start };
+    console.log(JSON.stringify(entry));
+  });
+  next();
+});
 
 // Root route
 app.get('/', (req, res) => {
@@ -33,6 +46,7 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       health: '/health',
+      metrics: '/metrics',
       services: '/services/health',
       auth: '/api/auth',
       users: '/api/users',
@@ -40,10 +54,12 @@ app.get('/', (req, res) => {
       cards: '/api/cards',
       collections: '/api/collections',
       upload: '/api/upload (upload-service)',
-      files: '/api/files',
-      preview: '/api/preview',
-      ai: '/api/ai',
-      uploads: '/uploads'
+      content: '/api/content (content-processing-service)',
+      files: '/api/files (files-service)',
+      preview: '/api/preview (preview-service)',
+      ai: '/api/ai (ai-service)',
+      email: '/api/email (email-service)',
+      uploads: '/uploads (uploads-static-service)'
     },
     timestamp: new Date().toISOString()
   });
@@ -95,7 +111,7 @@ const createServiceProxy = (serviceName, target) => {
     onError: (err, req, res) => {
       console.error(`Error proxying to ${serviceName}:`, err.message);
       if (!res.headersSent) {
-        const isBackend = serviceName === 'cards' || serviceName === 'collections' || serviceName === 'upload' || serviceName === 'preview' || serviceName === 'ai';
+        const isBackend = serviceName === 'cards' || serviceName === 'collections' || serviceName === 'upload' || serviceName === 'ai';
         res.status(502).json({ 
           error: `Service ${serviceName} unavailable`,
           message: isBackend ? 'Backend (cards/collections) may be down. Start it with: cd server && PORT=5010 npm run dev' : `Service ${serviceName} unavailable`,
@@ -169,31 +185,6 @@ app.use('/api/cards', validateToken, createProxyMiddleware({
   },
 }));
 
-// Backend (monolith) routes: collections, upload, preview, AI, static uploads
-const backendPathRewrite = (path, req) => req.originalUrl || path;
-const backendProxyOptions = {
-  target: SERVICES.backend,
-  changeOrigin: true,
-  timeout: 30000,
-  proxyTimeout: 30000,
-  pathRewrite: backendPathRewrite,
-  onError: (err, req, res) => {
-    console.error('Error proxying to backend:', err.message);
-    if (!res.headersSent) {
-      res.status(502).json({
-        error: 'Backend unavailable',
-        message: 'Backend (collections/upload) may be down. Start it: cd server && PORT=5010 npm run dev',
-        service: 'backend'
-      });
-    }
-  },
-  onProxyReq: (proxyReq, req) => {
-    if (req.user) {
-      proxyReq.setHeader('X-User-Id', req.user.id);
-      proxyReq.setHeader('X-User-Email', req.user.email);
-    }
-  },
-};
 // Collection Service routes (require auth)
 app.use('/api/collections', validateToken, createProxyMiddleware({
   target: SERVICES.collections,
@@ -242,14 +233,153 @@ app.use('/api/upload', validateToken, createProxyMiddleware({
     }
   },
 }));
-app.use('/api/files', validateToken, createProxyMiddleware({ ...backendProxyOptions }));
-app.use('/api/preview', validateToken, createProxyMiddleware({ ...backendProxyOptions }));
-app.use('/api/ai', validateToken, createProxyMiddleware({ ...backendProxyOptions }));
-app.use('/uploads', validateToken, createProxyMiddleware({
-  ...backendProxyOptions,
+app.use('/api/content', validateToken, createProxyMiddleware({
+  target: SERVICES.content,
+  changeOrigin: true,
   timeout: 60000,
   proxyTimeout: 60000,
+  pathRewrite: (path, req) => (req.originalUrl || path).replace(/^\/api\/content/, ''),
+  onError: (err, req, res) => {
+    console.error('Error proxying to content service:', err.message);
+    if (!res.headersSent) {
+      res.status(502).json({
+        error: 'Content service unavailable',
+        message: 'Content service may be down. Start it: cd services/content-processing-service && PORT=5007 npm start',
+        service: 'content',
+      });
+    }
+  },
+  onProxyReq: (proxyReq, req) => {
+    if (req.user) {
+      proxyReq.setHeader('X-User-Id', req.user.id);
+      proxyReq.setHeader('X-User-Email', req.user.email);
+    }
+  },
 }));
+app.use('/api/email', validateToken, createProxyMiddleware({
+  target: SERVICES.email,
+  changeOrigin: true,
+  timeout: 15000,
+  proxyTimeout: 15000,
+  pathRewrite: (path, req) => (req.originalUrl || path).replace(/^\/api\/email/, ''),
+  onError: (err, req, res) => {
+    console.error('Error proxying to email service:', err.message);
+    if (!res.headersSent) {
+      res.status(502).json({
+        error: 'Email service unavailable',
+        message: 'Email service may be down. Start it: cd services/email-service && PORT=5009 npm start',
+        service: 'email',
+      });
+    }
+  },
+}));
+app.use('/api/files', validateToken, createProxyMiddleware({
+  target: SERVICES.files,
+  changeOrigin: true,
+  timeout: 30000,
+  proxyTimeout: 30000,
+  pathRewrite: (path, req) => {
+    const url = req.originalUrl || path;
+    const [base, qs] = url.split('?');
+    const newPath = base.replace(/^\/api\/files\/?/, '/') || '/';
+    return qs ? `${newPath}?${qs}` : newPath;
+  },
+  onProxyReq: (proxyReq, req) => {
+    if (req.user) {
+      proxyReq.setHeader('X-User-Id', req.user.id);
+      proxyReq.setHeader('X-User-Email', req.user.email);
+    }
+  },
+  onError: (err, req, res) => {
+    console.error('Error proxying to files service:', err.message);
+    if (!res.headersSent) {
+      res.status(502).json({
+        error: 'Files service unavailable',
+        message: 'Files service may be down. Start it: cd services/files-service && PORT=5012 npm start',
+        service: 'files',
+      });
+    }
+  },
+}));
+app.use('/api/preview', validateToken, createProxyMiddleware({
+  target: SERVICES.preview,
+  changeOrigin: true,
+  timeout: 30000,
+  proxyTimeout: 30000,
+  pathRewrite: (path, req) => (req.originalUrl || path).replace(/^\/api\/preview/, ''),
+  onError: (err, req, res) => {
+    console.error('Error proxying to preview service:', err.message);
+    if (!res.headersSent) {
+      res.status(502).json({
+        error: 'Preview service unavailable',
+        message: 'Preview service may be down. Start it: cd services/preview-service && PORT=5011 npm start',
+        service: 'preview',
+      });
+    }
+  },
+  onProxyReq: (proxyReq, req) => {
+    if (req.user) {
+      proxyReq.setHeader('X-User-Id', req.user.id);
+      proxyReq.setHeader('X-User-Email', req.user.email);
+    }
+  },
+}));
+app.use('/api/ai', validateToken, createProxyMiddleware({
+  target: SERVICES.ai,
+  changeOrigin: true,
+  timeout: 35000,
+  proxyTimeout: 35000,
+  pathRewrite: (path, req) => (req.originalUrl || path).replace(/^\/api\/ai/, ''),
+  onError: (err, req, res) => {
+    console.error('Error proxying to AI service:', err.message);
+    if (!res.headersSent) {
+      res.status(502).json({
+        error: 'AI service unavailable',
+        message: 'AI service may be down. Start it: cd services/ai-service && PORT=5008 npm start',
+        service: 'ai',
+      });
+    }
+  },
+  onProxyReq: (proxyReq, req) => {
+    if (req.user) {
+      proxyReq.setHeader('X-User-Id', req.user.id);
+      proxyReq.setHeader('X-User-Email', req.user.email);
+    }
+  },
+}));
+app.use('/uploads', validateToken, createProxyMiddleware({
+  target: SERVICES.uploadsStatic,
+  changeOrigin: true,
+  timeout: 60000,
+  proxyTimeout: 60000,
+  pathRewrite: (path, req) => req.originalUrl || path,
+  onError: (err, req, res) => {
+    console.error('Error proxying to uploads-static:', err.message);
+    if (!res.headersSent) {
+      res.status(502).json({
+        error: 'Uploads static service unavailable',
+        message: 'Start it: cd services/uploads-static-service && PORT=5013 npm start',
+        service: 'uploads-static',
+      });
+    }
+  },
+}));
+
+// Prometheus-style metrics (service health as gauge)
+app.get('/metrics', async (req, res) => {
+  const axios = require('axios');
+  const lines = ['# HELP localknowledge_service_up Service health (1=up, 0=down)', '# TYPE localknowledge_service_up gauge'];
+  for (const [name, url] of Object.entries(SERVICES)) {
+    try {
+      await axios.get(`${url}/health`, { timeout: 2000 });
+      lines.push(`localknowledge_service_up{service="${name}"} 1`);
+    } catch {
+      lines.push(`localknowledge_service_up{service="${name}"} 0`);
+    }
+  }
+  res.set('Content-Type', 'text/plain; charset=utf-8');
+  res.send(lines.join('\n') + '\n');
+});
 
 // Service health checks (no auth)
 app.get('/services/health', async (req, res) => {
@@ -257,7 +387,7 @@ app.get('/services/health', async (req, res) => {
   const health = {};
 
   for (const [name, url] of Object.entries(SERVICES)) {
-    const healthPath = (name === 'backend') ? `${url}/api/health` : `${url}/health`;
+    const healthPath = `${url}/health`;
     try {
       const response = await axios.get(healthPath, { timeout: 2000 });
       health[name] = {
@@ -289,12 +419,23 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 API Gateway running on port ${PORT}`);
   console.log(`📡 Proxying to services:`);
   Object.entries(SERVICES).forEach(([name, url]) => {
     console.log(`   ${name}: ${url}`);
   });
 });
+
+function gracefulShutdown(signal) {
+  console.log(`\n${signal} received, shutting down...`);
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 10000);
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 module.exports = app;

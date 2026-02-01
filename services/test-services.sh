@@ -39,8 +39,18 @@ echo "---------------------------------"
 test_endpoint "Auth Service" "http://localhost:5001/health"
 test_endpoint "User Service" "http://localhost:5002/health"
 test_endpoint "Role Service" "http://localhost:5003/health"
+test_endpoint "Card Service" "http://localhost:5004/health"
+test_endpoint "Collection Service" "http://localhost:5005/health"
+test_endpoint "Upload Service" "http://localhost:5006/health"
+test_endpoint "Content Processing" "http://localhost:5007/health"
+test_endpoint "AI Service" "http://localhost:5008/health"
+test_endpoint "Email Service" "http://localhost:5009/health"
+test_endpoint "Preview Service" "http://localhost:5011/health"
+test_endpoint "Files Service" "http://localhost:5012/health"
+test_endpoint "Uploads Static" "http://localhost:5013/health"
 test_endpoint "API Gateway" "http://localhost:8000/health"
 test_endpoint "Gateway Services Health" "http://localhost:8000/services/health"
+test_endpoint "Gateway Metrics" "http://localhost:8000/metrics"
 echo ""
 
 # Test API Gateway routing
@@ -125,6 +135,20 @@ if echo "$users_response" | grep -q "users\|pagination"; then
 else
     echo -e "${RED}✗${NC}"
     echo "  Response: $users_response"
+fi
+echo ""
+
+# Test Files service
+echo "6. Testing Files Service"
+echo "------------------------"
+echo -n "Listing files... "
+files_response=$(curl -s "http://localhost:8000/api/files?page=1&limit=5" \
+  -H "Authorization: Bearer $TOKEN")
+if echo "$files_response" | grep -q '"files"'; then
+    echo -e "${GREEN}✓${NC}"
+else
+    echo -e "${RED}✗${NC}"
+    echo "  Response: $files_response"
 fi
 echo ""
 

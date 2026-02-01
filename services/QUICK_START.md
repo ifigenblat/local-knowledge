@@ -1,126 +1,66 @@
-# Microservices Quick Start Guide
+# LocalKnowledge Microservices – Quick Start
 
-## 🚀 Quick Start
+## Prerequisites
 
-### 1. Prerequisites
+- Node.js 18+
+- MongoDB (local or Docker)
+- npm
+
+## Start (local)
 
 ```bash
-# Ensure MongoDB is running
+# 1. Start MongoDB (if using Docker)
 docker run -d -p 27017:27017 --name mongodb mongo:7
 
-# Or use existing MongoDB instance
+# 2. Initialize roles (first run only)
+cd server && node scripts/init-roles.js && node scripts/create-admin-user.js
+cd ..
+
+# 3. Start all services
+cd services
+./start-all.sh
+
+# 4. Start frontend (separate terminal)
+cd client
+npm start
 ```
 
-### 2. Initialize Roles (Important!)
+Access: http://localhost:3000 (frontend), http://localhost:8000 (API Gateway)
 
-Before starting services, initialize roles in the database:
-
-```bash
-cd ../server
-node scripts/init-roles.js
-```
-
-### 3. Start All Services
+## Start (Docker)
 
 ```bash
 cd services
-./start-all.sh
+docker-compose up -d
 ```
 
-This will start:
-- Auth Service (port 5001)
-- User Service (port 5002)
-- Role Service (port 5003)
-- API Gateway (port 8000)
-
-### 4. Test Services
+## Stop
 
 ```bash
-./test-services.sh
-```
-
-### 5. Stop All Services
-
-```bash
+cd services
 ./stop-all.sh
 ```
 
-## 📋 Manual Testing
-
-### Health Checks
+## Test
 
 ```bash
-# Individual services
-curl http://localhost:5001/health
-curl http://localhost:5002/health
-curl http://localhost:5003/health
-curl http://localhost:8000/health
+cd services
+./test-services.sh
 
-# Gateway service health
-curl http://localhost:8000/services/health
+# Integration test (upload + files)
+node test-integration-upload-files.js
 ```
 
-### Register User
+## Environment
 
-```bash
-curl -X POST http://localhost:8000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Test User",
-    "email": "test@example.com",
-    "password": "test123456"
-  }'
-```
+Copy `.env.example` to `.env` in each service as needed. Key vars:
 
-### Login
+- `MONGODB_URI` – MongoDB connection (use auth if required)
+- `JWT_SECRET` – Shared across auth and gateway
+- `UPLOAD_DIR` – Path to uploads (default: ../../server/uploads)
 
-```bash
-curl -X POST http://localhost:8000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "test123456"
-  }'
-```
+## Observability
 
-Save the token from the response!
-
-### Get Roles (with token)
-
-```bash
-TOKEN="your-token-here"
-curl http://localhost:8000/api/roles \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-### Get Users (with token)
-
-```bash
-TOKEN="your-token-here"
-curl http://localhost:8000/api/users \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-## 🔍 Troubleshooting
-
-### Services won't start
-- Check MongoDB is running: `docker ps | grep mongo`
-- Check ports are available: `lsof -i :5001 -i :5002 -i :5003 -i :8000`
-- Check logs: `cat services/logs/*.log`
-
-### Connection errors
-- Verify MongoDB URI in `.env` files
-- Check service URLs are correct
-- Ensure services are started in order
-
-### Authentication fails
-- Verify JWT_SECRET matches across all services
-- Check token is being sent correctly
-- Verify user exists in database
-
-## 📝 Next Steps
-
-1. Test all endpoints
-2. Add remaining services (Card, Collection, Upload)
-3. Update frontend to use API Gateway
-4. Add monitoring and logging
+- `GET /health` – Gateway health
+- `GET /services/health` – All service health
+- `GET /metrics` – Prometheus-format metrics

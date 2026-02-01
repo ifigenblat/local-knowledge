@@ -26,6 +26,12 @@
     "test:cards": "cd services/card-service && node test-card-endpoints.js",
     "test:collections": "cd services/collection-service && node test-collection-endpoints.js",
     "test:uploads": "cd services/upload-service && node test-upload-endpoints.js",
+    "test:content": "cd services/content-processing-service && node test-content-processing-endpoints.js",
+    "test:ai": "cd services/ai-service && node test-ai-endpoints.js",
+    "test:email": "cd services/email-service && node test-email-endpoints.js",
+    "test:preview": "cd services/preview-service && node test-preview-endpoints.js",
+    "test:files": "cd services/files-service && node test-files-endpoints.js",
+    "test:integration": "cd services && node test-integration-upload-files.js",
     "count:cards": "cd services/card-service && node count-cards.js"
   },
   "keywords": [

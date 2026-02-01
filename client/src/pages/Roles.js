@@ -6,8 +6,7 @@ import {
   createRole, 
   updateRole, 
   deleteRole,
-  fetchRoleUsers,
-  assignRoleToUser
+  fetchRoleUsers
 } from '../store/slices/roleSlice';
 import { loadUser } from '../store/slices/authSlice';
 import { toast } from 'react-hot-toast';
@@ -17,10 +16,7 @@ import {
   Edit, 
   Trash2, 
   Users, 
-  X, 
-  Save,
-  Check,
-  UserPlus
+  X
 } from 'lucide-react';
 import { isAdmin, hasPermission } from '../utils/permissions';
 

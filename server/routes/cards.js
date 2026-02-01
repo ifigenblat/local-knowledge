@@ -3,7 +3,52 @@ const router = express.Router();
 const Card = require('../models/Card');
 const auth = require('../middleware/auth');
 const { createCardFromSection } = require('../utils/contentProcessor');
-const { regenerateCardHybrid, regenerateCardComparison, regenerateCardWithAI } = require('../utils/aiProcessor');
+const { regenerateCardWithAI } = require('../utils/aiProcessor');
+
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL;
+
+async function callRegenerateWithAI(snippet, sourceFileName) {
+  if (AI_SERVICE_URL) {
+    const response = await fetch(`${AI_SERVICE_URL.replace(/\/$/, '')}/regenerate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ snippet, sourceFileName }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || data.error || `AI service returned ${response.status}`);
+    return data;
+  }
+  return regenerateCardWithAI(snippet, sourceFileName);
+}
+
+async function regenerateCardComparisonWithService(snippet, sourceFileName, filePath) {
+  const ruleBasedResult = await createCardFromSection(snippet, sourceFileName, filePath, 1, 1);
+  if (!ruleBasedResult) throw new Error('Rule-based regeneration failed');
+  let aiResult = null;
+  let aiError = null;
+  try {
+    aiResult = await callRegenerateWithAI(snippet, sourceFileName);
+  } catch (error) {
+    aiError = error.message;
+    console.warn('AI regeneration failed:', error.message);
+  }
+  return { ruleBased: ruleBasedResult, ai: aiResult, aiError };
+}
+
+async function regenerateCardHybridWithService(snippet, sourceFileName, filePath, useAI) {
+  if (useAI) {
+    try {
+      const aiResult = await callRegenerateWithAI(snippet, sourceFileName);
+      console.log('Successfully regenerated card using AI');
+      return aiResult;
+    } catch (error) {
+      console.warn('AI regeneration failed, falling back to rule-based:', error.message);
+    }
+  }
+  const ruleBasedResult = await createCardFromSection(snippet, sourceFileName, filePath, 1, 1);
+  if (!ruleBasedResult) throw new Error('Both AI and rule-based regeneration failed');
+  return ruleBasedResult;
+}
 
 // Get all cards for a user
 router.get('/', auth, async (req, res) => {
@@ -269,7 +314,7 @@ router.post('/:id/regenerate', auth, async (req, res) => {
         console.warn('Comparison data not provided, regenerating...');
         if (versionToUse === 'ai') {
           try {
-            regeneratedCardData = await regenerateCardWithAI(snippet, sourceFileName);
+            regeneratedCardData = await callRegenerateWithAI(snippet, sourceFileName);
           } catch (aiError) {
             console.warn('AI regeneration failed when applying selected version, falling back to rule-based:', aiError.message);
             regeneratedCardData = await createCardFromSection(snippet, sourceFileName, filePath, 1, 1);
@@ -315,7 +360,7 @@ router.post('/:id/regenerate', auth, async (req, res) => {
 
     // If comparison mode is requested and AI is enabled, return both versions
     if (comparisonMode && useAI) {
-      const comparison = await regenerateCardComparison(snippet, sourceFileName, filePath);
+      const comparison = await regenerateCardComparisonWithService(snippet, sourceFileName, filePath);
       
       if (!comparison.ruleBased) {
         return res.status(400).json({ error: 'Failed to regenerate card from snippet' });
@@ -338,7 +383,7 @@ router.post('/:id/regenerate', auth, async (req, res) => {
     }
 
     // Standard regeneration (no comparison)
-    const regeneratedCardData = await regenerateCardHybrid(
+    const regeneratedCardData = await regenerateCardHybridWithService(
       snippet,
       sourceFileName,
       filePath,

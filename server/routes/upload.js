@@ -362,6 +362,8 @@ const processUploadedFileAuth = (req, res, next) => {
   return auth(req, res, next);
 };
 
+const CONTENT_SERVICE_URL = process.env.CONTENT_SERVICE_URL;
+
 router.post('/process-uploaded-file', processUploadedFileAuth, async (req, res) => {
   try {
     const { filePath, originalName, filename, size, mimetype, category, tags, model_name, prompt_version, confidence_score } = req.body;
@@ -380,7 +382,28 @@ router.post('/process-uploaded-file', processUploadedFileAuth, async (req, res) 
     };
     const fileHash = generateFileHash(filePath);
     const fileId = filename;
-    const processedContent = await processContent(file);
+
+    let processedContent;
+    if (CONTENT_SERVICE_URL) {
+      try {
+        const response = await fetch(`${CONTENT_SERVICE_URL.replace(/\/$/, '')}/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath, originalName, filename, mimetype: file.mimetype }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.message || data.error || `Content service returned ${response.status}`);
+        }
+        processedContent = data.items || [];
+      } catch (err) {
+        console.error('Content service error, falling back to local processor:', err.message);
+        processedContent = await processContent(file);
+      }
+    } else {
+      processedContent = await processContent(file);
+    }
+
     if (!processedContent || processedContent.length === 0) {
       return res.status(400).json({ error: 'No content could be extracted from the file' });
     }

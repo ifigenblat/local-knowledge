@@ -1,20 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { fetchCards, fetchCardsCount, deleteCardAsync, updateCardAsync, createCardAsync, regenerateCardAsync } from '../store/slices/cardSlice';
 import { fetchCollections, addCardToCollection, removeCardFromCollection, fetchCollection } from '../store/slices/collectionSlice';
 import { toast } from 'react-hot-toast';
 import { 
   Search, 
-  Filter, 
   Eye, 
   Edit, 
   Trash2, 
   Star,
-  Calendar,
   Tag,
   FileText,
-  Image as ImageIcon,
   FolderPlus,
   Folder,
   X,
@@ -46,7 +43,6 @@ const SOURCE_FILE_TYPE_OPTIONS = [
 
 const Cards = () => {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const collectionId = searchParams.get('collection');
   
@@ -56,12 +52,10 @@ const Cards = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
-  const [sourceFilter, setSourceFilter] = useState('');
   const [selectedSourceFileType, setSelectedSourceFileType] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [appliedSearch, setAppliedSearch] = useState('');
-  const [appliedSourceFilter, setAppliedSourceFilter] = useState('');
   const [selectedCard, setSelectedCard] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -90,14 +84,6 @@ const Cards = () => {
     }, 400);
     return () => clearTimeout(t);
   }, [searchTerm]);
-  // Debounce source filter
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setAppliedSourceFilter(sourceFilter.trim());
-      setCurrentPage(1);
-    }, 400);
-    return () => clearTimeout(t);
-  }, [sourceFilter]);
 
   // Fetch cards and count with server-side pagination and filters
   useEffect(() => {
@@ -105,12 +91,11 @@ const Cards = () => {
       search: appliedSearch || undefined,
       type: selectedType !== 'all' ? selectedType : undefined,
       category: selectedCategory !== 'all' ? selectedCategory : undefined,
-      source: appliedSourceFilter || undefined,
       sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
     };
     dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
     dispatch(fetchCardsCount(filters));
-  }, [currentPage, pageSize, appliedSearch, appliedSourceFilter, selectedType, selectedCategory, selectedSourceFileType, dispatch]);
+  }, [currentPage, pageSize, appliedSearch, selectedType, selectedCategory, selectedSourceFileType, dispatch]);
 
   useEffect(() => {
     dispatch(fetchCollections());
@@ -192,7 +177,6 @@ const Cards = () => {
         search: appliedSearch || undefined,
         type: selectedType !== 'all' ? selectedType : undefined,
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
-        source: appliedSourceFilter || undefined,
         sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
       };
       dispatch(fetchCards({ page: 1, limit: pageSize, ...filters }));
@@ -231,7 +215,6 @@ const Cards = () => {
         search: appliedSearch || undefined,
         type: selectedType !== 'all' ? selectedType : undefined,
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
-        source: appliedSourceFilter || undefined,
         sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
       };
       dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
@@ -250,6 +233,7 @@ const Cards = () => {
         search: appliedSearch || undefined,
         type: selectedType !== 'all' ? selectedType : undefined,
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
+        sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
       };
       dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
     } else {
@@ -265,7 +249,6 @@ const Cards = () => {
           search: appliedSearch || undefined,
           type: selectedType !== 'all' ? selectedType : undefined,
           category: selectedCategory !== 'all' ? selectedCategory : undefined,
-          source: appliedSourceFilter || undefined,
           sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
         };
         dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
@@ -440,7 +423,6 @@ const Cards = () => {
         search: appliedSearch || undefined,
         type: selectedType !== 'all' ? selectedType : undefined,
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
-        source: appliedSourceFilter || undefined,
         sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
       };
       dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
@@ -558,7 +540,7 @@ const Cards = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <input
               type="text"
-              placeholder="Search cards..."
+              placeholder="Search cards, content, or source (filename)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -592,14 +574,6 @@ const Cards = () => {
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
-
-          <input
-            type="text"
-            placeholder="Source (filename)"
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value)}
-            className="w-full sm:w-40 px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
 
           <select
             value={selectedSourceFileType}

@@ -1,8 +1,19 @@
 const express = require('express');
+const fs = require('fs');
+const crypto = require('crypto');
 const router = express.Router();
 const CardService = require('../services/CardService');
 
 const BACKEND_URL = process.env.BACKEND_SERVICE_URL || 'http://localhost:5010';
+
+function generateFileHash(filePath) {
+  try {
+    const buf = fs.readFileSync(filePath);
+    return crypto.createHash('sha256').update(buf).digest('hex');
+  } catch {
+    return null;
+  }
+}
 
 // Always get a string from any thrown value (Error, string, or other)
 function getErrorMessage(err) {
@@ -108,6 +119,71 @@ router.get('/:id', async (req, res) => {
   } catch (error) {
     const msg = getErrorMessage(error);
     console.error('Card service GET /:id error:', msg);
+    res.status(error?.status || 500).json({ error: msg, message: msg, service: 'card-service' });
+  }
+});
+
+// Internal: create/update cards from processed upload (called by upload-service)
+router.post('/from-processed-file', async (req, res) => {
+  try {
+    const { filePath, originalName, filename, size, mimetype, items, category, tags, model_name, prompt_version, confidence_score } = req.body;
+    if (!filePath || !originalName || !filename || !items || !Array.isArray(items)) {
+      return res.status(400).json({ error: 'filePath, originalName, filename, and items (array) are required' });
+    }
+    if (!fs.existsSync(filePath)) {
+      return res.status(400).json({ error: 'File not found at path' });
+    }
+    const file = {
+      path: filePath,
+      originalname: originalName,
+      filename,
+      size: size || 0,
+      mimetype: mimetype || 'application/octet-stream',
+    };
+    const fileHash = generateFileHash(filePath);
+    const fileId = filename;
+
+    const createdCards = [];
+    const updatedCards = [];
+    const placeholderTexts = ['No content', 'no content', 'N/A', 'n/a', 'NA', 'na', 'None', 'none', 'Null', 'null'];
+
+    for (const item of items) {
+      if (!item.content || typeof item.content !== 'string' || item.content.trim().length < 10) continue;
+      if (placeholderTexts.includes(item.content.trim())) continue;
+
+      const provenance = {
+        ...(item.provenance || {}),
+        model_name: model_name || item.provenance?.model_name || null,
+        prompt_version: prompt_version || item.provenance?.prompt_version || '1.0',
+        confidence_score: confidence_score != null ? parseFloat(confidence_score) : item.provenance?.confidence_score ?? null,
+      };
+      const cardData = {
+        title: item.title,
+        content: item.content,
+        type: item.type || 'concept',
+        category: category || item.category || 'General',
+        tags: tags ? (typeof tags === 'string' ? tags.split(',').map(t => t.trim()) : tags) : (item.tags || []),
+        provenance,
+      };
+      try {
+        const result = await CardService.createOrUpdateFromProcessedItem(cardData, req.user.id, file, fileHash, fileId);
+        if (result.isDuplicate) updatedCards.push(result.card);
+        else createdCards.push(result.card);
+      } catch (err) {
+        console.error('Error processing item:', err);
+      }
+    }
+
+    const totalProcessed = createdCards.length + updatedCards.length;
+    res.status(201).json({
+      message: `Successfully processed ${totalProcessed} cards`,
+      details: { created: createdCards.length, updated: updatedCards.length },
+      cards: [...createdCards, ...updatedCards],
+      file: { filename, originalName, size: size || 0 },
+    });
+  } catch (error) {
+    const msg = getErrorMessage(error);
+    console.error('Card service from-processed-file error:', msg);
     res.status(error?.status || 500).json({ error: msg, message: msg, service: 'card-service' });
   }
 });

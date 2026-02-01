@@ -1,0 +1,24 @@
+{
+  "name": "content-processing-service",
+  "version": "1.0.0",
+  "description": "Content processing microservice for LocalKnowledge - extracts content from files for card creation",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test:endpoints": "node test-content-processing-endpoints.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "mammoth": "^1.6.0",
+    "multer": "^1.4.5-lts.1",
+    "natural": "^6.10.4",
+    "pdf-parse": "^1.1.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

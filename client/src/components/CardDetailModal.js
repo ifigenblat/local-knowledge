@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
   BookOpen, 
@@ -119,7 +118,7 @@ const CardDetailModal = ({
   loading = false 
 }) => {
   const dispatch = useDispatch();
-  const { aiStatus, loading: cardsLoading } = useSelector(state => state.cards);
+  const { aiStatus } = useSelector(state => state.cards);
   const [provenanceExpanded, setProvenanceExpanded] = useState(false);
   const [showSourceFile, setShowSourceFile] = useState(false);
   const [sourceFileContent, setSourceFileContent] = useState(null);

@@ -140,6 +140,11 @@ cardSchema.statics.findByCardId = function (cardId) {
   return this.findOne({ cardId: cardId.toUpperCase() });
 };
 
+cardSchema.statics.findDuplicate = function (contentHash, userId) {
+  if (!contentHash) return null;
+  return this.findOne({ contentHash, user: userId });
+};
+
 cardSchema.statics.findByCategory = function (category, userId) {
   return this.find({ category, user: userId }).sort({ createdAt: -1 });
 };

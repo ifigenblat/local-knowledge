@@ -4,93 +4,61 @@ This directory contains the microservices implementation for LocalKnowledge.
 
 ## Services
 
+- **gateway** (Port 8000): API Gateway
 - **auth-service** (Port 5001): Authentication and authorization
 - **user-service** (Port 5002): User management
 - **role-service** (Port 5003): Role and permission management
-- **gateway** (Port 8000): API Gateway
+- **card-service** (Port 5004): Card CRUD
+- **collection-service** (Port 5005): Collections
+- **upload-service**, **content-processing-service**, **ai-service**, **email-service**, **preview-service**, **files-service**, **uploads-static-service**: Supporting services
 
 ## Shared Modules
 
-- **shared/database.js**: MongoDB connection shared across services
-- **shared/repository-pattern.js**: Base repository class for database abstraction
+- **shared/postgres**: PostgreSQL connection and Sequelize models (User, Role, Card, Collection)
+- **shared/postgres/repositories**: Postgres repositories used by auth, user, role, card, collection, files services
 
 ## Running Services
 
-### Development (Individual Services)
+### Start all (recommended)
 
 ```bash
-# Auth Service
-cd services/auth-service
-npm install
-npm run dev
+cd services
+./start-all.sh
+```
 
-# User Service
-cd services/user-service
-npm install
-npm run dev
+Requires PostgreSQL on port 5432 (e.g. Docker: `docker run -d -p 5432:5432 -e POSTGRES_USER=localknowledge -e POSTGRES_PASSWORD=localknowledge -e POSTGRES_DB=localknowledge postgres:16-alpine`).
 
-# Role Service
-cd services/role-service
-npm install
-npm run dev
+First run: create schema and seed data from `services/`:
 
-# API Gateway
-cd services/gateway
-npm install
-npm run dev
+```bash
+npm run sync-postgres
+npm run seed-postgres
 ```
 
 ### Environment Variables
 
-Each service needs a `.env` file:
+Set in `services/.env` or export:
 
-```env
-# Database
-MONGODB_URI=mongodb://localhost:27017/local-knowledge
-
-# Service URLs (for inter-service communication)
-AUTH_SERVICE_URL=http://localhost:5001
-USER_SERVICE_URL=http://localhost:5002
-ROLE_SERVICE_URL=http://localhost:5003
-
-# JWT
-JWT_SECRET=your-secret-key
-
-# Ports
-PORT=5001  # Service-specific port
-```
+- `DATABASE_URL` – PostgreSQL connection (e.g. `postgresql://localknowledge:localknowledge@localhost:5432/localknowledge`)
+- `JWT_SECRET` – Shared across auth and gateway
+- `UPLOAD_DIR` – Path to uploads directory
+- Service-specific `PORT` (or use defaults from start-all.sh)
 
 ## Architecture
 
 ```
-Frontend → API Gateway (8000) → Services (5001-5003) → MongoDB
+Frontend → API Gateway (8000) → Services (5001–5013) → PostgreSQL
 ```
 
 ## Testing
 
-Test each service individually:
-
 ```bash
-# Auth Service
-curl http://localhost:5001/health
-
-# User Service
-curl http://localhost:5002/health
-
-# Role Service
-curl http://localhost:5003/health
-
-# API Gateway
+# Gateway
 curl http://localhost:8000/health
 curl http://localhost:8000/services/health
+
+# Individual services (when running)
+curl http://localhost:5001/health
+curl http://localhost:5002/health
+# etc.
 ```
-
-## Repository Pattern
-
-All services use the repository pattern for database abstraction:
-
-- `BaseRepository`: Common database operations
-- Service-specific repositories extend `BaseRepository`
-- Services use repositories, not direct database access
-
-This makes it easy to swap MongoDB for PostgreSQL later.

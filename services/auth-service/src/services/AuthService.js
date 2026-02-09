@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const axios = require('axios');
-const UserRepository = require('../repositories/UserRepository');
+const { getUserRepository } = require('../repositories/UserRepositoryFactory');
 
 class AuthService {
   constructor() {
@@ -12,7 +12,7 @@ class AuthService {
   }
 
   async register(name, email, password) {
-    // Check if user already exists
+    const UserRepository = await getUserRepository();
     const existingUser = await UserRepository.findByEmail(email);
     if (existingUser) {
       throw new Error('User already exists');
@@ -70,8 +70,7 @@ class AuthService {
   }
 
   async login(email, password) {
-    // With bufferCommands: true, Mongoose will buffer queries if not connected
-    // The middleware already ensures connection, so we can proceed
+    const UserRepository = await getUserRepository();
     const user = await UserRepository.findByEmailWithRole(email);
     if (!user) {
       throw new Error('Invalid credentials');
@@ -90,6 +89,7 @@ class AuthService {
 
   async validateToken(token) {
     try {
+      const UserRepository = await getUserRepository();
       const decoded = jwt.verify(token, this.jwtSecret);
       const user = await UserRepository.findByIdWithRole(decoded.id);
       
@@ -104,6 +104,7 @@ class AuthService {
   }
 
   async requestPasswordReset(email) {
+    const UserRepository = await getUserRepository();
     const user = await UserRepository.findByEmail(email);
     if (!user) {
       // Don't reveal if user exists (security)
@@ -116,7 +117,7 @@ class AuthService {
     const resetTokenExpires = Date.now() + 3600000; // 1 hour
 
     await UserRepository.updatePasswordResetToken(
-      user._id,
+      user.id || user._id,
       resetTokenHash,
       resetTokenExpires
     );
@@ -157,39 +158,73 @@ class AuthService {
   }
 
   async resetPassword(token, newPassword) {
+    if (!token || typeof token !== 'string') {
+      throw new Error('Reset token is required. Please use the link from your email or request a new password reset.');
+    }
+    const trimmedToken = token.trim();
+    if (trimmedToken.length !== 64 || !/^[a-f0-9]+$/i.test(trimmedToken)) {
+      throw new Error('Reset link may be incomplete or invalid. Please request a new password reset from the forgot-password page.');
+    }
     if (newPassword.length < 6) {
       throw new Error('Password must be at least 6 characters long');
     }
 
-    const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    const user = await UserRepository.findOne({
-      resetPasswordToken: resetTokenHash,
-      resetPasswordExpires: { $gt: Date.now() }
-    });
+    const UserRepository = await getUserRepository();
+    const resetTokenHash = crypto.createHash('sha256').update(trimmedToken).digest('hex');
+    const user = await UserRepository.findByResetToken(resetTokenHash);
 
     if (!user) {
-      throw new Error('Invalid or expired reset token');
+      throw new Error('Invalid or expired reset token. Please request a new password reset.');
     }
 
-    // Hash new password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    await UserRepository.updatePassword(user._id, hashedPassword);
+    await UserRepository.updatePassword(user.id || user._id, hashedPassword);
 
     return { message: 'Password reset successfully' };
   }
 
+  async changePassword(userId, currentPassword, newPassword) {
+    if (!userId) {
+      throw new Error('User not found. Please log in again.');
+    }
+    if (!currentPassword || !newPassword) {
+      throw new Error('Current password and new password are required');
+    }
+    if (newPassword.length < 6) {
+      throw new Error('New password must be at least 6 characters long');
+    }
+
+    const UserRepository = await getUserRepository();
+    const user = await UserRepository.findByIdWithRole(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      throw new Error('Current password is incorrect');
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    await UserRepository.updatePassword(userId, hashedPassword);
+
+    return { message: 'Password updated successfully' };
+  }
+
   generateToken(user) {
+    const role = user.Role || user.role;
     const payload = {
       id: user._id || user.id,
       name: user.name,
       email: user.email,
-      role: user.role ? {
-        id: user.role._id || user.role.id,
-        name: user.role.name,
-        displayName: user.role.displayName,
-        permissions: user.role.permissions
+      role: role ? {
+        id: role._id || role.id,
+        name: role.name,
+        displayName: role.displayName,
+        permissions: role.permissions
       } : null,
       mustChangePassword: user.mustChangePassword || false
     };
@@ -198,15 +233,16 @@ class AuthService {
   }
 
   formatUserForJWT(user) {
+    const role = user.Role || user.role;
     return {
       id: user._id || user.id,
       name: user.name,
       email: user.email,
-      role: user.role ? {
-        id: user.role._id || user.role.id,
-        name: user.role.name,
-        displayName: user.role.displayName,
-        permissions: user.role.permissions
+      role: role ? {
+        id: role._id || role.id,
+        name: role.name,
+        displayName: role.displayName,
+        permissions: role.permissions
       } : null,
       mustChangePassword: user.mustChangePassword || false
     };

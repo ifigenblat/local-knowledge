@@ -52,8 +52,9 @@ const ResetPassword = () => {
 
     setLoading(true);
     try {
+      // Trim token in case URL encoding or copy/paste added spaces
       await axios.post('/api/auth/reset-password', {
-        token,
+        token: token ? token.trim() : '',
         newPassword: formData.newPassword
       });
       setSuccess(true);

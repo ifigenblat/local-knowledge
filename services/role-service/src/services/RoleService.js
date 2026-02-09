@@ -1,12 +1,14 @@
-const RoleRepository = require('../repositories/RoleRepository');
+const { getRoleRepository } = require('../repositories/RoleRepositoryFactory');
 
 class RoleService {
   async getAllRoles() {
-    return await RoleRepository.find();
+    const repo = await getRoleRepository();
+    return repo.find();
   }
 
   async getRoleById(id) {
-    const role = await RoleRepository.findById(id);
+    const repo = await getRoleRepository();
+    const role = await repo.findById(id);
     if (!role) {
       throw new Error('Role not found');
     }
@@ -14,47 +16,44 @@ class RoleService {
   }
 
   async getRoleByName(name) {
-    return await RoleRepository.findByName(name);
+    const repo = await getRoleRepository();
+    return repo.findByName(name);
   }
 
   async createRole(roleData) {
-    // Check if role already exists
-    const existing = await RoleRepository.findByName(roleData.name);
+    const repo = await getRoleRepository();
+    const existing = await repo.findByName(roleData.name);
     if (existing) {
       throw new Error('Role with this name already exists');
     }
-
-    return await RoleRepository.create(roleData);
+    return repo.create(roleData);
   }
 
   async updateRole(id, roleData) {
-    const role = await RoleRepository.findById(id);
+    const repo = await getRoleRepository();
+    const role = await repo.findById(id);
     if (!role) {
       throw new Error('Role not found');
     }
-
     if (role.isImmutable) {
       throw new Error('Cannot modify an immutable role');
     }
-
-    return await RoleRepository.update(id, roleData);
+    return repo.update(id, roleData);
   }
 
   async deleteRole(id) {
-    const role = await RoleRepository.findById(id);
+    const repo = await getRoleRepository();
+    const role = await repo.findById(id);
     if (!role) {
       throw new Error('Role not found');
     }
-
     if (role.isImmutable) {
       throw new Error('Cannot delete an immutable role');
     }
-
     if (role.isSystem) {
       throw new Error('Cannot delete system role');
     }
-
-    return await RoleRepository.delete(id);
+    return repo.delete(id);
   }
 }
 

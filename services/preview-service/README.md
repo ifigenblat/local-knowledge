@@ -13,7 +13,7 @@ Generates file previews for LocalKnowledge. Converts DOCX/XLSX to HTML, streams 
 ## Environment
 
 - `PORT` – Default 5011
-- `UPLOAD_DIR` – Path to uploads directory. Default: `../../server/uploads` (relative to cwd). Set absolute path in production.
+- `UPLOAD_DIR` – Path to uploads directory. Default: `../uploads` (i.e. `services/uploads` when run from `services/preview-service`). Set absolute path in production.
 
 ## Supported formats
 
@@ -28,10 +28,11 @@ Generates file previews for LocalKnowledge. Converts DOCX/XLSX to HTML, streams 
 ```bash
 cd services/preview-service
 npm install
-PORT=5011 UPLOAD_DIR=/path/to/server/uploads npm start
+PORT=5011 npm start
+# Or with custom path: PORT=5011 UPLOAD_DIR=/path/to/uploads npm start
 ```
 
-From start-all.sh, UPLOAD_DIR is set automatically to `$PROJECT_ROOT/server/uploads`.
+From start-all.sh, UPLOAD_DIR is set automatically to `services/uploads`.
 
 ## Test
 

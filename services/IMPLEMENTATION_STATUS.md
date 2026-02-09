@@ -52,7 +52,7 @@
 ## 🧪 Testing Instructions
 
 ### Prerequisites
-1. MongoDB running: `docker run -d -p 27017:27017 mongo:7`
+1. PostgreSQL running (e.g. Docker: `docker run -d -p 5432:5432 -e POSTGRES_USER=localknowledge -e POSTGRES_PASSWORD=localknowledge -e POSTGRES_DB=localknowledge postgres:16-alpine`)
 2. Initialize roles: Run `server/scripts/init-roles.js` first
 
 ### Start Services
@@ -94,9 +94,4 @@ curl http://localhost:8000/api/users -H "Authorization: Bearer $TOKEN"
 1. Production hardening (secrets, TLS)
 2. Optional: Prometheus + Grafana dashboards
 
-## 🔄 Ready for PostgreSQL Migration
-
-The repository pattern is implemented, making PostgreSQL migration straightforward:
-- Only repository implementations need to change
-- Service code remains unchanged
-- Easy to swap MongoDB for PostgreSQL
+All services use PostgreSQL (shared/postgres). Schema: `npm run sync-postgres`; seed: `npm run seed-postgres`.

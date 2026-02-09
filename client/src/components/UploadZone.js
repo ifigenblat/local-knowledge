@@ -11,8 +11,10 @@ const UploadZone = ({ onUpload, onUploadComplete, isUploading = false, uploadSet
   const handleFileUpload = useCallback(async (fileObj) => {
     const formData = new FormData();
     formData.append('file', fileObj.file);
-    
-    // Add category and tags if provided
+
+    if (uploadSettings.useAI) {
+      formData.append('useAI', 'true');
+    }
     if (uploadSettings.category) {
       formData.append('category', uploadSettings.category);
     }
@@ -40,11 +42,11 @@ const UploadZone = ({ onUpload, onUploadComplete, isUploading = false, uploadSet
         body: formData
       });
 
+      const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error('Upload failed');
+        const msg = result?.message || result?.error || `Upload failed (${response.status})`;
+        throw new Error(msg);
       }
-
-      const result = await response.json();
       
       setUploadedFiles(prev => 
         prev.map(f => 
@@ -79,7 +81,7 @@ const UploadZone = ({ onUpload, onUploadComplete, isUploading = false, uploadSet
         )
       );
 
-      toast.error(`Failed to upload ${fileObj.file.name}`);
+      toast.error(error?.message || `Failed to upload ${fileObj.file.name}`);
     }
   }, [onUploadComplete, uploadSettings]);
 
@@ -135,7 +137,7 @@ const UploadZone = ({ onUpload, onUploadComplete, isUploading = false, uploadSet
       'image/png': ['.png'],
       'application/json': ['.json']
     },
-    maxSize: 10 * 1024 * 1024, // 10MB
+    maxSize: 20 * 1024 * 1024, // 20MB
     disabled: isUploading
   });
 

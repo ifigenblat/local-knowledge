@@ -4,7 +4,7 @@ import axios from 'axios';
 // Async thunk for fetching cards (optional: { page, limit, search, type, category } — server-side pagination)
 export const fetchCards = createAsyncThunk(
   'cards/fetchCards',
-  async ({ page = 1, limit = 20, search, type, category, source, sourceFileType } = {}, { rejectWithValue }) => {
+  async ({ page = 1, limit = 20, search, type, category, source, sourceFileType, dateFrom, dateTo, sortBy, sortOrder } = {}, { rejectWithValue }) => {
     try {
       const token = localStorage.getItem('token');
       const params = { page, limit };
@@ -13,6 +13,10 @@ export const fetchCards = createAsyncThunk(
       if (category) params.category = category;
       if (source) params.source = source;
       if (sourceFileType) params.sourceFileType = sourceFileType;
+      if (dateFrom) params.dateFrom = dateFrom;
+      if (dateTo) params.dateTo = dateTo;
+      if (sortBy) params.sortBy = sortBy;
+      if (sortOrder) params.sortOrder = sortOrder;
       const response = await axios.get('/api/cards', {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -32,7 +36,7 @@ export const fetchCards = createAsyncThunk(
 // Async thunk for fetching cards count only (optional: { search, type, category } — same filters as list)
 export const fetchCardsCount = createAsyncThunk(
   'cards/fetchCardsCount',
-  async ({ search, type, category, source, sourceFileType } = {}, { rejectWithValue }) => {
+  async ({ search, type, category, source, sourceFileType, dateFrom, dateTo } = {}, { rejectWithValue }) => {
     try {
       const token = localStorage.getItem('token');
       const params = {};
@@ -41,6 +45,8 @@ export const fetchCardsCount = createAsyncThunk(
       if (category) params.category = category;
       if (source) params.source = source;
       if (sourceFileType) params.sourceFileType = sourceFileType;
+      if (dateFrom) params.dateFrom = dateFrom;
+      if (dateTo) params.dateTo = dateTo;
       const response = await axios.get('/api/cards/count', {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -132,7 +138,7 @@ export const regenerateCardAsync = createAsyncThunk(
   }
 );
 
-// Async thunk for checking AI/Ollama status
+// Async thunk for checking AI status (provider-agnostic)
 export const checkAIStatusAsync = createAsyncThunk(
   'cards/checkAIStatusAsync',
   async (_, { rejectWithValue }) => {
@@ -169,6 +175,9 @@ const initialState = {
     available: false,
     checking: false,
     error: null,
+    provider: null,
+    model: null,
+    cloudLabel: null,
   },
 };
 
@@ -298,12 +307,18 @@ const cardSlice = createSlice({
         state.aiStatus.enabled = action.payload.enabled || false;
         state.aiStatus.available = action.payload.available || false;
         state.aiStatus.error = action.payload.error || null;
+        state.aiStatus.provider = action.payload.provider || null;
+        state.aiStatus.model = action.payload.model || null;
+        state.aiStatus.cloudLabel = action.payload.cloudLabel || null;
       })
       .addCase(checkAIStatusAsync.rejected, (state, action) => {
         state.aiStatus.checking = false;
         state.aiStatus.enabled = false;
         state.aiStatus.available = false;
         state.aiStatus.error = action.payload?.error || 'Failed to check AI status';
+        state.aiStatus.provider = null;
+        state.aiStatus.model = null;
+        state.aiStatus.cloudLabel = null;
       });
   },
 });

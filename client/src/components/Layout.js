@@ -14,9 +14,11 @@ import {
   Menu,
   X,
   Shield,
-  Users
+  Users,
+  Settings2,
+  Cpu
 } from 'lucide-react';
-import { isAdmin, hasPermission } from '../utils/permissions';
+import { isAdmin, hasPermission, isSuperAdmin } from '../utils/permissions';
 
 const Layout = ({ children }) => {
   const dispatch = useDispatch();
@@ -160,6 +162,26 @@ const Layout = ({ children }) => {
                   >
                     <Shield className="w-5 h-5 mr-3" />
                     Roles
+                  </Link>
+                )}
+                {isAdmin(user) && (
+                  <Link
+                    to="/content-rules"
+                    onClick={handleLinkClick}
+                    className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${getActiveClass('/content-rules')}`}
+                  >
+                    <Settings2 className="w-5 h-5 mr-3" />
+                    Content Rules
+                  </Link>
+                )}
+                {isSuperAdmin(user) && (
+                  <Link
+                    to="/ai-settings"
+                    onClick={handleLinkClick}
+                    className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${getActiveClass('/ai-settings')}`}
+                  >
+                    <Cpu className="w-5 h-5 mr-3" />
+                    AI Settings
                   </Link>
                 )}
               </div>

@@ -1,14 +1,13 @@
 const express = require('express');
 const cors = require('cors');
-const mongoose = require('mongoose');
+const path = require('path');
 require('dotenv').config();
 
-const path = require('path');
-require('./models/Role');
 const roleRoutes = require('./routes/roleRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5003;
+
 
 // Middleware
 app.use(cors());
@@ -20,6 +19,7 @@ app.get('/health', (req, res) => {
   res.json({
     service: 'role-service',
     status: 'healthy',
+    database: 'postgresql',
     timestamp: new Date().toISOString()
   });
 });
@@ -36,21 +36,15 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server: use this service's mongoose so models are on the same connection
 const startServer = async () => {
   try {
-    const mongoURI =
-      process.env.MONGODB_URI || 'mongodb://localhost:27017/local-knowledge';
-
-    await mongoose.connect(mongoURI);
-    console.log(
-      '✅ Role Service MongoDB connected (readyState:',
-      mongoose.connection.readyState,
-      ')'
-    );
+    const { connectDB } = require(path.join(__dirname, '../../shared/postgres/database'));
+    const { initModels } = require(path.join(__dirname, '../../shared/postgres/models'));
+    await connectDB();
+    initModels();
 
     app.listen(PORT, () => {
-      console.log(`🚀 Role Service running on port ${PORT}`);
+      console.log(`🚀 Role Service running on port ${PORT} (PostgreSQL)`);
     });
   } catch (error) {
     console.error('Failed to start Role Service:', error);

@@ -1,16 +1,25 @@
-import React, { useState } from 'react';
-import { useDispatch } from 'react-redux';
+import React, { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { addMultipleCards } from '../store/slices/cardSlice';
+import { checkAIStatusAsync } from '../store/slices/cardSlice';
 import UploadZone from '../components/UploadZone';
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { getAIDisplayName } from '../utils/aiUtils';
 
 const Upload = () => {
   const dispatch = useDispatch();
+  const { aiStatus } = useSelector((state) => state.cards);
   const [uploadSettings, setUploadSettings] = useState({
     category: '',
-    tags: ''
+    tags: '',
+    useAI: false,
   });
   const [uploadResults, setUploadResults] = useState(null);
+
+  useEffect(() => {
+    dispatch(checkAIStatusAsync());
+  }, [dispatch]);
 
   const handleUploadComplete = (result) => {
     console.log('Upload completed:', result);
@@ -107,6 +116,50 @@ const Upload = () => {
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Comma-separated tags to add to all cards
             </p>
+          </div>
+          <div className="md:col-span-2">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                name="useAI"
+                checked={uploadSettings.useAI}
+                onChange={(e) => setUploadSettings((prev) => ({ ...prev, useAI: e.target.checked }))}
+                disabled={!aiStatus.available}
+                className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <div className="flex-1">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Use AI to create cards
+                  {aiStatus.provider ? (
+                    <span className="text-gray-500 dark:text-gray-400 font-normal">
+                      {' '}({getAIDisplayName(aiStatus)})
+                    </span>
+                  ) : null}
+                </span>
+                <div className="flex items-center gap-2 mt-1">
+                  {aiStatus.checking ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Checking AI status...</span>
+                    </>
+                  ) : aiStatus.available ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <span className="text-xs text-green-600 dark:text-green-400">
+                        AI ({getAIDisplayName(aiStatus)}) available
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-4 h-4 text-red-500" />
+                      <span className="text-xs text-red-600 dark:text-red-400">
+                        AI unavailable: {aiStatus.error || 'Not configured or not reachable'}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </label>
           </div>
         </div>
       </div>

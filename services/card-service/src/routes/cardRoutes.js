@@ -4,7 +4,56 @@ const crypto = require('crypto');
 const router = express.Router();
 const CardService = require('../services/CardService');
 
-const BACKEND_URL = process.env.BACKEND_SERVICE_URL || 'http://localhost:5010';
+const CONTENT_SERVICE_URL = (process.env.CONTENT_SERVICE_URL || 'http://localhost:5007').replace(/\/$/, '');
+const AI_SERVICE_URL = (process.env.AI_SERVICE_URL || 'http://localhost:5008').replace(/\/$/, '');
+
+async function callRegenerateRuleBased(snippet, sourceFileName, filePath) {
+  const res = await fetch(`${CONTENT_SERVICE_URL}/regenerate-rule-based`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ snippet, sourceFileName, filePath }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || data.error || `Content service returned ${res.status}`);
+  return data;
+}
+
+async function callRegenerateAI(snippet, sourceFileName) {
+  const res = await fetch(`${AI_SERVICE_URL}/regenerate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ snippet, sourceFileName }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || data.error || `AI service returned ${res.status}`);
+  return data;
+}
+
+async function regenerateComparison(snippet, sourceFileName, filePath) {
+  const ruleBased = await callRegenerateRuleBased(snippet, sourceFileName, filePath);
+  let ai = null;
+  let aiError = null;
+  try {
+    ai = await callRegenerateAI(snippet, sourceFileName);
+  } catch (e) {
+    aiError = e.message;
+    console.warn('AI regeneration failed:', aiError);
+  }
+  return { ruleBased, ai, aiError };
+}
+
+async function regenerateHybrid(snippet, sourceFileName, filePath, useAI) {
+  if (useAI) {
+    try {
+      const ai = await callRegenerateAI(snippet, sourceFileName);
+      console.log('Successfully regenerated card using AI');
+      return ai;
+    } catch (e) {
+      console.warn('AI regeneration failed, falling back to rule-based:', e.message);
+    }
+  }
+  return callRegenerateRuleBased(snippet, sourceFileName, filePath);
+}
 
 function generateFileHash(filePath) {
   try {
@@ -44,8 +93,8 @@ router.get('/', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'No token provided' });
     }
-    const { type, category, search, source, sourceFileType, page, limit } = req.query;
-    const result = await CardService.getCards(userId, { type, category, search, source, sourceFileType, page, limit }, {});
+    const { type, category, search, source, sourceFileType, dateFrom, dateTo, sortBy, sortOrder, page, limit } = req.query;
+    const result = await CardService.getCards(userId, { type, category, search, source, sourceFileType, dateFrom, dateTo, sortBy, sortOrder, page, limit }, {});
     res.json(result);
   } catch (error) {
     const msg = error?.name === 'CastError' && error?.kind === 'ObjectId'
@@ -84,27 +133,107 @@ router.get('/type/:type', async (req, res) => {
   }
 });
 
-// Regenerate card: proxy to backend (content + AI processing live there)
+// Regenerate card from provenance snippet (PostgreSQL + content/AI services)
 router.post('/:id/regenerate', async (req, res) => {
   try {
-    const url = `${BACKEND_URL}/api/cards/${req.params.id}/regenerate`;
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
-    };
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(req.body),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      return res.status(response.status).json(data);
+    const card = await CardService.getCardByIdOrCardId(req.params.id, req.user.id);
+    if (!card) {
+      return res.status(404).json({ error: 'Card not found' });
     }
-    res.json(data);
+    const provenance = card.provenance || {};
+    if (!provenance.snippet) {
+      return res.status(400).json({ error: 'Card does not have a provenance snippet to regenerate from' });
+    }
+    const snippet = provenance.snippet;
+    const sourceFileName = card.source || provenance.source_path || 'regenerated';
+    const filePath = provenance.source_path || null;
+    const useAI = req.body.useAI === true;
+    const comparisonMode = req.body.comparisonMode === true;
+    const selectedVersion = req.body.selectedVersion;
+    const comparisonData = req.body.comparisonData;
+    const cardId = card.id || card._id;
+    const userId = req.user.id;
+
+    const bumpProvenanceVersion = (prov) => {
+      if (!prov) return;
+      const v = (prov.prompt_version || '1.0').split('.');
+      prov.prompt_version = `${parseInt(v[0]) || 1}.${(parseInt(v[1]) || 0) + 1}`;
+    };
+
+    const applyAndSave = async (regeneratedCardData, generatedBy) => {
+      const prov = { ...provenance, ...(regeneratedCardData.provenance || {}) };
+      bumpProvenanceVersion(prov);
+      const updated = await CardService.updateCard(cardId, userId, {
+        title: regeneratedCardData.title,
+        content: regeneratedCardData.content,
+        type: regeneratedCardData.type,
+        category: regeneratedCardData.category,
+        tags: regeneratedCardData.tags || [],
+        provenance: prov,
+        generatedBy: generatedBy || regeneratedCardData.generatedBy || 'rule-based',
+      });
+      const c = updated?.toJSON ? updated.toJSON() : updated;
+      if (c) c._id = c.id || c._id;
+      return c || updated;
+    };
+
+    if (selectedVersion) {
+      let regeneratedCardData;
+      if (comparisonData && comparisonData[selectedVersion]) {
+        regeneratedCardData = comparisonData[selectedVersion];
+      } else {
+        if (selectedVersion === 'ai') {
+          try {
+            regeneratedCardData = await callRegenerateAI(snippet, sourceFileName);
+          } catch (e) {
+            console.warn('AI failed when applying selected version, falling back to rule-based:', e.message);
+            regeneratedCardData = await callRegenerateRuleBased(snippet, sourceFileName, filePath);
+          }
+        } else {
+          regeneratedCardData = await callRegenerateRuleBased(snippet, sourceFileName, filePath);
+        }
+      }
+      if (!regeneratedCardData) {
+        return res.status(400).json({ error: 'Failed to regenerate card from snippet' });
+      }
+      const saved = await applyAndSave(regeneratedCardData, selectedVersion === 'ai' ? 'ai' : 'rule-based');
+      return res.json(saved);
+    }
+
+    if (comparisonMode && useAI) {
+      const comparison = await regenerateComparison(snippet, sourceFileName, filePath);
+      if (!comparison.ruleBased) {
+        return res.status(400).json({ error: 'Failed to regenerate card from snippet' });
+      }
+      return res.json({
+        comparison: true,
+        ruleBased: comparison.ruleBased,
+        ai: comparison.ai,
+        aiError: comparison.aiError,
+        originalCard: {
+          title: card.title,
+          content: card.content,
+          type: card.type,
+          category: card.category,
+          tags: card.tags || [],
+        },
+      });
+    }
+
+    const regeneratedCardData = await regenerateHybrid(snippet, sourceFileName, filePath, useAI);
+    if (!regeneratedCardData) {
+      return res.status(400).json({ error: 'Failed to regenerate card from snippet' });
+    }
+    const saved = await applyAndSave(regeneratedCardData, regeneratedCardData.generatedBy || 'rule-based');
+    res.json(saved);
   } catch (error) {
-    console.error('Card regenerate proxy error:', error);
-    res.status(502).json({ error: 'Regenerate service unavailable' });
+    console.error('Card regenerate error:', error);
+    const msg = getErrorMessage(error);
+    res.status(error?.status || 500).json({
+      error: msg,
+      message: msg,
+      service: 'card-service',
+    });
   }
 });
 

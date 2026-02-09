@@ -5,7 +5,7 @@
 ### ✅ Completed
 
 1. **Repository Pattern**: Implemented base repository class for database abstraction
-2. **Shared Database Module**: MongoDB connection shared across services
+2. **Shared Database Module**: PostgreSQL connection shared across services
 3. **Auth Service** (Port 5001): Authentication, JWT, password reset
 4. **User Service** (Port 5002): User CRUD operations
 5. **Role Service** (Port 5003): Role and permission management
@@ -19,7 +19,7 @@
 ```
 services/
 ├── shared/
-│   ├── database.js              # MongoDB connection
+│   ├── postgres/                # PostgreSQL connection and models
 │   └── repository-pattern.js    # Base repository class
 ├── auth-service/
 │   ├── src/
@@ -81,7 +81,7 @@ services/
 ## Testing Instructions
 
 ### Prerequisites
-1. MongoDB running on port 27017
+1. PostgreSQL running (port 5432); run `npm run sync-postgres` and `npm run seed-postgres` from services/ first
 2. Node.js installed
 3. All service dependencies installed
 
@@ -185,7 +185,7 @@ The repository pattern is implemented, making PostgreSQL migration straightforwa
 
 ## Conclusion
 
-✅ **Microservices architecture successfully implemented on MongoDB**
+✅ **Microservices architecture successfully implemented on PostgreSQL**
 
 The foundation is in place with:
 - Repository pattern for easy database migration

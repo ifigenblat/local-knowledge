@@ -15,6 +15,8 @@ import Collections from './pages/Collections';
 import Settings from './pages/Settings';
 import Roles from './pages/Roles';
 import Users from './pages/Users';
+import ContentRules from './pages/ContentRules';
+import AISettings from './pages/AISettings';
 import Layout from './components/Layout';
 
 const App = () => {
@@ -65,6 +67,8 @@ const App = () => {
         <Route path="/settings" element={isAuthenticated ? <Layout><Settings /></Layout> : <Navigate to="/login" />} />
         <Route path="/roles" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Roles /></Layout>) : <Navigate to="/login" />} />
         <Route path="/users" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Users /></Layout>) : <Navigate to="/login" />} />
+        <Route path="/content-rules" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><ContentRules /></Layout>) : <Navigate to="/login" />} />
+        <Route path="/ai-settings" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><AISettings /></Layout>) : <Navigate to="/login" />} />
       </Routes>
     </Router>
   );

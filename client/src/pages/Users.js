@@ -354,7 +354,9 @@ const UsersPage = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {new Date(user.createdAt).toLocaleDateString()}
+                          {user.createdAt || user.created_at
+                              ? new Date(user.createdAt || user.created_at).toLocaleDateString()
+                              : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end space-x-2">

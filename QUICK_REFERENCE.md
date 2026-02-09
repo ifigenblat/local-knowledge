@@ -20,24 +20,20 @@ npm run dev
 
 ### **Start/Stop Application**
 ```bash
-# Start both frontend and backend
-npm run dev
+# Start microservices (from services/)
+cd services && ./start-all.sh
 
-# Stop all services
-npm run stop
+# Start frontend
+npm run client
 
-# Start services separately
-npm run server    # Backend only
-npm run client    # Frontend only
+# Stop all services (from services/)
+cd services && ./stop-all.sh
 ```
 
-### **Docker Management**
+### **Database (PostgreSQL)**
 ```bash
-# MongoDB container
-npm run docker:start     # Start MongoDB
-npm run docker:stop      # Stop MongoDB
-npm run docker:restart   # Restart MongoDB
-npm run docker:logs      # View MongoDB logs
+# Start PostgreSQL (Docker example)
+docker run -d -p 5432:5432 -e POSTGRES_USER=localknowledge -e POSTGRES_PASSWORD=localknowledge -e POSTGRES_DB=localknowledge postgres:16-alpine
 ```
 
 ### **Testing & Health Checks**
@@ -61,9 +57,9 @@ npm run build
 ## 🌐 **Access Points**
 
 - **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:5001
-- **Health Check**: http://localhost:5001/api/health
-- **AI Status**: http://localhost:5001/api/ai/status
+- **API Gateway**: http://localhost:8000
+- **Health Check**: http://localhost:8000/health
+- **Services Health**: http://localhost:8000/services/health
 - **MailHog** (Email Testing): http://localhost:8025
 - **Ollama** (AI, optional): http://localhost:11434
 
@@ -82,20 +78,20 @@ npm run build
 ## 📁 **Key Files & Locations**
 
 ### **Configuration Files**
-- `server/.env` - Backend environment variables
+- `services/.env` - DATABASE_URL, JWT_SECRET, etc.
 - `client/package.json` - Frontend proxy configuration
 - `package.json` - Root scripts and dependencies
 
 ### **Critical Components**
-- `server/models/` - User, Card, Collection models
-- `server/routes/` - Auth, Cards, Upload, Collections, Preview routes
+- `services/shared/postgres/` - PostgreSQL models and repositories
+- `services/gateway/` - API Gateway (port 8000)
 - `client/src/store/slices/` - Redux slices (auth, cards, collections)
-- `client/src/pages/` - All page components (Dashboard, Cards, View, Upload, Collections, Settings, Auth pages)
-- `client/src/components/` - Reusable components (Layout, CardDetailModal, UploadZone, ImageZoomViewer)
+- `client/src/pages/` - All page components
+- `client/src/components/` - Reusable components
 
 ### **File Storage**
-- `server/uploads/` - Uploaded files storage
-- MongoDB - Database storage
+- Uploads directory (UPLOAD_DIR in services)
+- PostgreSQL - Database storage
 
 ## 🚨 **Troubleshooting**
 
@@ -106,20 +102,17 @@ lsof -ti:3000 | xargs kill -9
 lsof -ti:5001 | xargs kill -9
 ```
 
-### **MongoDB Issues**
+### **PostgreSQL Issues**
 ```bash
-# Check if MongoDB is running
-docker ps | grep mongodb
+# Check if PostgreSQL is running
+docker ps | grep postgres
 
-# Start MongoDB if stopped
-docker start mongodb
+# Start PostgreSQL (example)
+docker run -d -p 5432:5432 -e POSTGRES_USER=localknowledge -e POSTGRES_PASSWORD=localknowledge -e POSTGRES_DB=localknowledge postgres:16-alpine
 
-# Create new MongoDB container (matches setup.sh / check-server.sh)
-docker run -d --name mongodb -p 27017:27017 \
-  -e MONGO_INITDB_ROOT_USERNAME=localknowledge \
-  -e MONGO_INITDB_ROOT_PASSWORD=myknowledge \
-  -e MONGO_INITDB_DATABASE=local-knowledge \
-  mongo:latest --auth
+# Create schema and seed (first run, from services/)
+npm run sync-postgres
+npm run seed-postgres
 ```
 
 ### **Dependency Issues**
@@ -130,9 +123,8 @@ npm run install-all
 ```
 
 ### **Proxy Errors**
-- Verify `client/package.json` has `"proxy": "http://localhost:5001"`
-- Ensure backend is running on port 5001
-- Check that both services are running
+- Verify frontend proxy points to API Gateway (e.g. port 8000)
+- Ensure microservices are running: `cd services && ./start-all.sh`
 
 ## 📊 **File Types Supported**
 
@@ -157,35 +149,29 @@ npm run install-all
 ## 🔧 **Development Commands**
 
 ```bash
-# View backend logs
-cd server && npm run dev
+# Start microservices
+cd services && ./start-all.sh
 
-# View frontend logs
+# View frontend
 cd client && npm start
 
-# Check database
-docker exec -it mongodb mongosh local-knowledge
+# Check database (PostgreSQL)
+# Use DBeaver or: psql $DATABASE_URL
 ```
 
 ## 📝 **Environment Variables**
 
-### **Backend (server/.env)**
+### **Services (services/.env)**
 ```env
-PORT=5001
-MONGODB_URI=mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge?authSource=admin
+DATABASE_URL=postgresql://localknowledge:localknowledge@localhost:5432/localknowledge
 JWT_SECRET=your-secret-key-here
-NODE_ENV=development
 CLIENT_URL=http://localhost:3000
 
-# Email Configuration (Local Development)
+# Email (development)
 MAILHOG_HOST=127.0.0.1
 MAILHOG_PORT=1025
 
-# For Gmail SMTP (Optional - uncomment to use):
-# SMTP_USER=your-email@gmail.com
-# SMTP_PASS=your-app-password
-
-# AI Configuration (Optional - for AI-powered card regeneration)
+# AI (optional)
 # OLLAMA_ENABLED=true
 # OLLAMA_API_URL=http://localhost:11434
 # OLLAMA_MODEL=llama2
@@ -193,7 +179,7 @@ MAILHOG_PORT=1025
 
 ## 🎉 **Success Indicators**
 
-✅ Backend responds: `{"status":"OK","message":"Server is running"}`  
+✅ Gateway responds: http://localhost:8000/health  
 ✅ Frontend loads: HTTP 200 OK  
 ✅ Proxy works: Frontend can reach backend  
 ✅ Can register/login  
@@ -223,7 +209,7 @@ MAILHOG_PORT=1025
 
 - **Docs**: `AI_VERIFICATION.md`
 - **Status endpoint**: `GET /api/ai/status`
-- **Enable AI**: set `OLLAMA_ENABLED=true` in `server/.env` and restart the server
+- **Enable AI**: set `OLLAMA_ENABLED=true` in `services/.env` (or gateway/ai-service) and restart services
 - **Comparison mode**: Clicking **Regenerate (AI)** shows a side-by-side comparison (rule-based vs AI). Click **Use This Version** to apply.
 
 ---

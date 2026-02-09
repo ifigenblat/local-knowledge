@@ -45,7 +45,7 @@
             "method": "GET",
             "header": [],
             "url": "{{base_url}}/services/health",
-            "description": "Health of all proxied services (auth, user, role, cards, collections, upload, backend)"
+            "description": "Health of all proxied services (auth, user, role, cards, collections, upload, content, ai, etc.)"
           }
         }
       ]
@@ -196,6 +196,28 @@
             "header": [],
             "url": "{{base_url}}/api/users/{{user_id}}",
             "description": "Delete user by ID"
+          }
+        },
+        {
+          "name": "Get Settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/users/settings",
+            "description": "Get app settings (e.g. AI provider, cloud provider, URL, model). API key is never returned; use cloudApiKeyMasked / hasApiKey."
+          }
+        },
+        {
+          "name": "Update Settings (Super Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aiProvider\": \"openai\",\n  \"cloudProvider\": \"groq\",\n  \"cloudApiUrl\": \"https://api.groq.com/openai/v1\",\n  \"cloudModel\": \"llama-3.1-8b-instant\",\n  \"cloudApiKey\": \"\"\n}"
+            },
+            "url": "{{base_url}}/api/users/settings",
+            "description": "Update app settings. Super Administrator only. aiProvider: 'ollama' | 'openai'. When openai: cloudProvider (openai|groq|together|custom), cloudApiUrl, cloudModel, cloudApiKey (optional; leave empty to keep current key)."
           }
         }
       ]
@@ -644,7 +666,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"filePath\": \"/absolute/path/to/server/uploads/your-file.pdf\",\n  \"originalName\": \"your-file.pdf\",\n  \"filename\": \"file-1234567890-123.pdf\"\n}"
+              "raw": "{\n  \"filePath\": \"/absolute/path/to/services/uploads/your-file.pdf\",\n  \"originalName\": \"your-file.pdf\",\n  \"filename\": \"file-1234567890-123.pdf\"\n}"
             },
             "url": "{{base_url}}/api/content/process",
             "description": "Extract content from a file by path. Used by Upload Service. filePath must be absolute and readable by the service. Returns { items: [...] }."

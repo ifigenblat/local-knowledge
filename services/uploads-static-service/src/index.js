@@ -10,7 +10,7 @@ const getUploadDir = () => {
   const dir = process.env.UPLOAD_DIR;
   if (dir && path.isAbsolute(dir)) return dir;
   if (dir) return path.resolve(process.cwd(), dir);
-  return path.resolve(process.cwd(), '../../server/uploads');
+  return path.resolve(process.cwd(), '../uploads');
 };
 
 const uploadDir = getUploadDir();

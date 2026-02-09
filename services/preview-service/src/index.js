@@ -15,7 +15,7 @@ app.get('/health', (req, res) => {
 
 app.get('/status', (req, res) => {
   const path = require('path');
-  const uploadDir = process.env.UPLOAD_DIR || '../../server/uploads';
+  const uploadDir = process.env.UPLOAD_DIR || '../uploads';
   const resolved = path.isAbsolute(uploadDir) ? uploadDir : path.resolve(process.cwd(), uploadDir);
   const fs = require('fs');
   const exists = fs.existsSync(resolved);
@@ -30,7 +30,7 @@ app.get('/status', (req, res) => {
 app.use('/', previewRoutes);
 
 app.listen(PORT, () => {
-  const uploadDir = process.env.UPLOAD_DIR || '../../server/uploads';
+  const uploadDir = process.env.UPLOAD_DIR || '../uploads';
   console.log(`Preview Service listening on port ${PORT}`);
   console.log(`Upload dir: ${uploadDir}`);
 });

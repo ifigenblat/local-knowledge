@@ -4,6 +4,7 @@ const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const natural = require('natural');
 const XLSX = require('xlsx');
+const { getRules } = require('../services/rulesService');
 
 // Initialize tokenizer for text analysis
 const tokenizer = new natural.WordTokenizer();
@@ -75,153 +76,6 @@ function hasMeaningfulContent(content, minLength = 10) {
   return true;
 }
 
-// Keywords that indicate different card types
-const CARD_TYPE_KEYWORDS = {
-  concept: ['concept', 'definition', 'theory', 'principle', 'framework', 'model'],
-  action: [
-    'action', 'actions', 'action item', 'action items',
-    'step', 'steps', 'next step', 'next steps',
-    'process', 'procedure', 'method', 'technique', 'strategy',
-    'task', 'tasks', 'todo', 'to do', 'to-do',
-    'follow up', 'follow-up', 'followup',
-    'implement', 'implementation', 'execute', 'execution',
-    'deliverable', 'deliverables', 'milestone', 'milestones',
-    'assign', 'assignment', 'owner', 'responsible',
-    'deadline', 'due date', 'timeline', 'schedule'
-  ],
-  quote: ['quote', 'saying', 'proverb', 'wisdom', 'insight'],
-  checklist: ['checklist', 'list', 'items', 'tasks', 'requirements', 'criteria'],
-  mindmap: ['relationship', 'connection', 'link', 'network', 'system']
-};
-
-// Common imperative verbs that indicate action items
-const ACTION_VERBS = [
-  'create', 'build', 'develop', 'design', 'implement', 'deploy',
-  'write', 'draft', 'prepare', 'complete', 'finish', 'finalize',
-  'review', 'approve', 'submit', 'send', 'share', 'publish',
-  'update', 'modify', 'change', 'fix', 'resolve', 'address',
-  'schedule', 'organize', 'plan', 'coordinate', 'manage',
-  'contact', 'reach out', 'follow up', 'meet', 'discuss',
-  'analyze', 'evaluate', 'assess', 'investigate', 'research',
-  'install', 'configure', 'setup', 'test', 'verify', 'validate'
-];
-
-// Comprehensive category keywords for better categorization
-const CATEGORY_KEYWORDS = {
-  'AI': [
-    'ai', 'artificial intelligence', 'machine learning', 'ml', 'deep learning', 'neural network',
-    'algorithm', 'automation', 'chatbot', 'gpt', 'llm', 'large language model', 'nlp',
-    'natural language processing', 'computer vision', 'robotics', 'predictive analytics',
-    'data science', 'intelligent', 'smart', 'automated', 'cognitive', 'intelligence'
-  ],
-  'Leadership': [
-    'leadership', 'leader', 'vision', 'inspire', 'motivate', 'empower', 'mentor',
-    'coach', 'guide', 'direct', 'influence', 'authority', 'executive', 'ceo', 'manager'
-  ],
-  'Management': [
-    'management', 'manager', 'supervisor', 'administrator', 'director', 'head',
-    'oversight', 'coordination', 'supervision', 'administration', 'governance'
-  ],
-  'Team Management': [
-    'team', 'collaboration', 'cooperation', 'group', 'member', 'colleague',
-    'partnership', 'alliance', 'unity', 'together', 'collective', 'synergy'
-  ],
-  'People': [
-    'people', 'personnel', 'staff', 'employee', 'individual', 'human', 'person',
-    'workforce', 'talent', 'colleague', 'team member', 'stakeholder', 'user'
-  ],
-  'Organization': [
-    'organization', 'org', 'organizational', 'institution', 'company', 'corporation',
-    'enterprise', 'business', 'firm', 'agency', 'department', 'division', 'unit'
-  ],
-  'Operating Principles': [
-    'operating principles', 'principles', 'values', 'ethics', 'standards', 'guidelines',
-    'policies', 'procedures', 'best practices', 'methodology', 'framework', 'approach'
-  ],
-  'Process': [
-    'process', 'workflow', 'procedure', 'method', 'system', 'approach', 'methodology',
-    'technique', 'strategy', 'tactic', 'protocol', 'routine', 'operation'
-  ],
-  'Architecture': [
-    'architecture', 'architectural', 'design', 'structure', 'framework', 'blueprint',
-    'model', 'pattern', 'layout', 'configuration', 'infrastructure', 'system design'
-  ],
-  'Data': [
-    'data', 'information', 'analytics', 'metrics', 'statistics', 'insights', 'intelligence',
-    'reporting', 'analysis', 'measurement', 'kpi', 'dashboard', 'database', 'dataset'
-  ],
-  'Technology': [
-    'technology', 'digital', 'software', 'hardware', 'system', 'platform',
-    'application', 'tool', 'automation', 'innovation', 'development',
-    'implementation', 'integration', 'maintenance', 'upgrade'
-  ],
-  'Communication': [
-    'communication', 'presentation', 'speech', 'talk', 'discussion', 'meeting',
-    'conversation', 'dialogue', 'message', 'feedback', 'listen', 'speak', 'write',
-    'email', 'report', 'documentation', 'storytelling', 'public speaking'
-  ],
-  'Strategic Planning': [
-    'strategy', 'planning', 'plan', 'goal', 'objective', 'target', 'mission',
-    'vision', 'roadmap', 'blueprint', 'framework', 'approach', 'methodology',
-    'tactics', 'initiative', 'project', 'program'
-  ],
-  'Performance Management': [
-    'performance', 'evaluation', 'assessment', 'review', 'feedback', 'metrics',
-    'kpi', 'measurement', 'analysis', 'improvement', 'optimization', 'efficiency',
-    'productivity', 'quality', 'excellence', 'achievement', 'results'
-  ],
-  'Change Management': [
-    'change', 'transformation', 'transition', 'evolution', 'adaptation',
-    'innovation', 'disruption', 'modernization', 'digitalization', 'restructure',
-    'reorganization', 'improvement', 'development', 'growth'
-  ],
-  'Decision Making': [
-    'decision', 'choice', 'option', 'alternative', 'solution', 'problem-solving',
-    'analysis', 'evaluation', 'judgment', 'conclusion', 'determination',
-    'resolve', 'decide', 'choose', 'select', 'prioritize'
-  ],
-  'Conflict Resolution': [
-    'conflict', 'dispute', 'disagreement', 'resolution', 'mediation', 'negotiation',
-    'compromise', 'consensus', 'agreement', 'harmony', 'reconciliation',
-    'peace', 'understanding', 'tolerance', 'respect'
-  ],
-  'Time Management': [
-    'time', 'schedule', 'deadline', 'timeline', 'prioritization', 'organization',
-    'efficiency', 'productivity', 'planning', 'coordination', 'management',
-    'allocation', 'optimization', 'balance', 'work-life'
-  ],
-  'Financial Management': [
-    'finance', 'budget', 'cost', 'expense', 'revenue', 'profit', 'investment',
-    'financial', 'economic', 'monetary', 'fiscal', 'accounting', 'audit',
-    'forecasting', 'planning', 'analysis', 'reporting'
-  ],
-  'Customer Service': [
-    'customer', 'client', 'service', 'support', 'satisfaction', 'experience',
-    'relationship', 'engagement', 'loyalty', 'retention', 'acquisition',
-    'feedback', 'complaint', 'resolution', 'excellence'
-  ],
-  'Marketing': [
-    'marketing', 'brand', 'advertising', 'promotion', 'campaign', 'strategy',
-    'market', 'customer', 'audience', 'target', 'message', 'communication',
-    'social media', 'content', 'analytics', 'conversion'
-  ],
-  'Human Resources': [
-    'hr', 'human resources', 'recruitment', 'hiring', 'training', 'development',
-    'employee', 'staff', 'personnel', 'workforce', 'talent', 'culture',
-    'benefits', 'compensation', 'retention', 'engagement'
-  ],
-  'Operations': [
-    'operations', 'process', 'workflow', 'procedure', 'system', 'efficiency',
-    'optimization', 'streamline', 'automation', 'quality', 'standards',
-    'compliance', 'safety', 'risk', 'management'
-  ],
-  'Sales': [
-    'sales', 'revenue', 'deal', 'prospect', 'client', 'customer', 'pitch',
-    'negotiation', 'closing', 'relationship', 'pipeline', 'target',
-    'quota', 'commission', 'performance', 'growth'
-  ]
-};
-
 /**
  * Process uploaded file and extract content for card creation
  */
@@ -290,6 +144,58 @@ async function processContent(file) {
 }
 
 /**
+ * Extract raw text from file for AI processing (no card creation)
+ * Returns text representation of file content.
+ */
+async function extractTextOnly(file) {
+  const fileExtension = path.extname(file.originalname || '').toLowerCase();
+  switch (fileExtension) {
+    case '.pdf':
+      return await extractFromPDF(file.path);
+    case '.docx':
+    case '.doc':
+      return await extractFromWord(file.path);
+    case '.xlsx':
+    case '.xls':
+      return await extractExcelAsText(file.path);
+    case '.txt':
+    case '.md':
+      return extractFromText(file.path);
+    case '.json':
+      return extractFromJSON(file.path);
+    case '.png':
+    case '.jpg':
+    case '.jpeg':
+      return await extractFromImage(file.path, file.originalname);
+    default:
+      throw new Error(`Unsupported file type for AI: ${fileExtension}`);
+  }
+}
+
+/**
+ * Extract Excel file as readable text (row per line, columns as Header: value)
+ */
+async function extractExcelAsText(filePath) {
+  const workbook = XLSX.readFile(filePath);
+  const lines = [];
+  for (const sheetName of workbook.SheetNames) {
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    if (jsonData.length === 0) continue;
+    const headerRow = jsonData[0] || [];
+    const schema = headerRow.map((h, i) => h && String(h).trim() ? String(h).trim() : `Column_${i + 1}`);
+    for (let i = 1; i < jsonData.length; i++) {
+      const row = jsonData[i] || [];
+      const parts = schema.map((col, j) => `${col}: ${row[j] != null ? String(row[j]).trim() : ''}`).filter((p) => p.endsWith(': ') === false);
+      if (parts.some((p) => p.split(': ')[1])) {
+        lines.push(parts.join(' | '));
+      }
+    }
+  }
+  return lines.join('\n\n');
+}
+
+/**
  * Extract text from PDF file
  */
 async function extractFromPDF(filePath) {
@@ -347,24 +253,22 @@ async function extractFromExcel(filePath, fileName = null) {
 
       console.log('Schema created:', schema);
 
-      // Process each data row (starting from row 2)
+      // Process each data row (starting from row 2, skipping header row 0)
       for (let rowIndex = 1; rowIndex < jsonData.length; rowIndex++) {
         const row = jsonData[rowIndex];
-        
-        console.log(`Checking row ${rowIndex + 1}:`, row);
-        
+
         if (row && row.length > 0) {
-          console.log(`Processing row ${rowIndex + 1}:`, row);
-          // Create card from row data using the schema
-          const card = await createCardFromExcelRowWithSchema(row, rowIndex + 1, sheetName, schema, filePath);
+          const card = await createCardFromExcelRowWithSchema(
+            row,
+            rowIndex + 1,
+            sheetName,
+            schema,
+            filePath,
+            headerRow
+          );
           if (card) {
             allCards.push(card);
-            console.log(`Card created for row ${rowIndex + 1}:`, card.title);
-          } else {
-            console.log(`No card created for row ${rowIndex + 1} (empty content)`);
           }
-        } else {
-          console.log(`Row ${rowIndex + 1} is empty or null, skipping`);
         }
       }
     }
@@ -378,127 +282,157 @@ async function extractFromExcel(filePath, fileName = null) {
 }
 
 /**
+ * Check if a row looks like a header row (values match or closely match column names)
+ */
+function isExcelHeaderLikeRow(rowData, schema, headerRow) {
+  if (!rowData || !schema) return false;
+  const headerCells = headerRow ? headerRow.map((h) => String(h || '').trim().toLowerCase()) : [];
+  let matchCount = 0;
+  let nonEmptyCount = 0;
+  for (let i = 0; i < Math.min(rowData.length, schema.length); i++) {
+    const cellVal = String(rowData[i] || '').trim().toLowerCase();
+    const colName = String(schema[i]?.name || '').trim().toLowerCase();
+    const headerCell = headerCells[i] || '';
+    if (cellVal) {
+      nonEmptyCount++;
+      if (colName && cellVal === colName) matchCount++;
+      if (headerCell && cellVal === headerCell) matchCount++;
+      if (colName && colName.length > 2 && cellVal.includes(colName)) matchCount += 0.5;
+    }
+  }
+  if (nonEmptyCount === 0) return false;
+  return matchCount >= Math.min(2, nonEmptyCount);
+}
+
+/**
+ * Check if content looks like a column header (short, matches schema names)
+ */
+function looksLikeColumnHeader(value, schema) {
+  if (!value || typeof value !== 'string') return false;
+  const v = value.trim().toLowerCase();
+  if (v.length < 2 || v.length > 60) return false;
+  for (const col of schema || []) {
+    const name = String(col?.name || '').trim().toLowerCase();
+    if (name && (v === name || v.replace(/[\s_-]/g, '') === name.replace(/[\s_-]/g, ''))) return true;
+  }
+  return false;
+}
+
+/**
+ * Build meaningful content from an Excel row: "Label: Value" pairs
+ */
+function buildExcelRowContent(structuredContent, schema) {
+  const parts = [];
+  for (let i = 0; i < schema.length; i++) {
+    const colName = schema[i]?.name;
+    const val = structuredContent[colName];
+    const str = val != null ? String(val).trim() : '';
+    if (!str) continue;
+    const isGenericCol = !colName || colName === `Column_${i + 1}`;
+    if (isGenericCol) {
+      parts.push(str);
+    } else {
+      parts.push(`${colName}: ${str}`);
+    }
+  }
+  return parts.join('\n\n').trim();
+}
+
+/**
+ * Validate that an Excel row is meaningful (not header-like, not just numbers, etc.)
+ */
+function isMeaningfulExcelRow(structuredContent, schema, primaryContent) {
+  const values = Object.values(structuredContent || {}).filter((v) => v != null && String(v).trim() !== '');
+  if (values.length === 0) return false;
+  const nonEmptyRatio = values.length / Math.max(1, Object.keys(structuredContent || {}).length);
+  if (nonEmptyRatio < 0.2) return false;
+  if (!primaryContent || primaryContent.length < 10) return false;
+  if (looksLikeColumnHeader(primaryContent, schema)) return false;
+  if (!hasMeaningfulContent(primaryContent, 10)) return false;
+  const numericOnly = values.filter((v) => /^[\d\s.,\-+%$]+$/.test(String(v).trim()));
+  if (values.length <= 2 && numericOnly.length === values.length) return false;
+  return true;
+}
+
+/**
  * Create a card from an Excel row using the original schema
  */
-async function createCardFromExcelRowWithSchema(rowData, rowNumber, sheetName, schema, filePath = null) {
+async function createCardFromExcelRowWithSchema(rowData, rowNumber, sheetName, schema, filePath = null, headerRow = null) {
   try {
-    console.log(`Creating card for row ${rowNumber}, data:`, rowData);
-    
-    // Create structured content based on schema
     const structuredContent = {};
-    let column2Content = '';
-
-    // Map row data to schema columns
     for (let i = 0; i < schema.length; i++) {
       const columnName = schema[i].name;
-      const cellValue = rowData[i] || '';
-      
-      // Store in structured format
-      structuredContent[columnName] = cellValue;
-      
-      // Get column 2 content (index 1) for direct display
-      if (i === 1) {
-        column2Content = cellValue.toString().trim();
-      }
+      structuredContent[columnName] = rowData[i] != null ? rowData[i] : '';
     }
 
-    // If column 2 is empty, try to find content in other columns
-    if (!column2Content) {
-      for (let i = 0; i < rowData.length; i++) {
-        const cellValue = rowData[i];
-        if (cellValue && cellValue.toString().trim() !== '') {
-          column2Content = cellValue.toString().trim();
-          console.log(`Found content in column ${i + 1}:`, column2Content);
-          break;
-        }
-      }
-    }
-
-    // Truncate content if it's too long (keep it under 9500 chars to be safe)
-    if (column2Content && column2Content.length > 9500) {
-      console.log(`Content too long (${column2Content.length} chars), truncating to 9500 chars`);
-      column2Content = column2Content.substring(0, 9500) + '... [Content truncated]';
-    }
-
-    console.log('Structured content:', structuredContent);
-    console.log('Column 2 content:', column2Content);
-
-    // Skip rows with no meaningful content
-    const hasContent = Object.values(structuredContent).some(val => val && val.toString().trim() !== '');
-    if (!hasContent) {
-      console.log(`Row ${rowNumber} has no meaningful content, skipping`);
+    if (isExcelHeaderLikeRow(rowData, schema, headerRow)) {
       return null;
     }
 
-    // Validate that we have meaningful content (not just empty or "No content")
-    if (!hasMeaningfulContent(column2Content, 10)) {
-      console.log(`Row ${rowNumber} has no meaningful content, skipping`);
+    const contentText = buildExcelRowContent(structuredContent, schema);
+
+    if (!contentText) {
       return null;
     }
 
-    // Generate title from the first non-empty cell or use row number
+    const truncatedContent =
+      contentText.length > 9500 ? contentText.substring(0, 9500) + '... [Content truncated]' : contentText;
+
+    if (!isMeaningfulExcelRow(structuredContent, schema, contentText)) {
+      return null;
+    }
+
     let title = '';
-    for (let i = 0; i < rowData.length; i++) {
-      if (rowData[i] && rowData[i].toString().trim().length > 0) {
-        const cellValue = rowData[i].toString().trim();
-        // If the cell value is short enough, use it directly as title
-        if (cellValue.length < 100) {
-          title = cellValue;
-        } else {
-          title = generateTitle(cellValue, 'concept');
+    const firstCol = schema[0]?.name;
+    const firstVal = structuredContent[firstCol];
+    const firstStr = firstVal != null ? String(firstVal).trim() : '';
+    if (firstStr && firstStr.length <= 120 && !looksLikeColumnHeader(firstStr, schema)) {
+      title = firstStr;
+    } else {
+      const parts = [];
+      for (let i = 0; i < Math.min(2, schema.length); i++) {
+        const v = structuredContent[schema[i]?.name];
+        if (v != null && String(v).trim()) {
+          const s = String(v).trim();
+          if (s.length <= 80 && !looksLikeColumnHeader(s, schema)) {
+            parts.push(s);
+            if (parts.length >= 2) break;
+          }
         }
-        console.log(`Generated title from column ${i + 1}:`, title);
-        break;
       }
-    }
-    if (!title) {
-      title = `${sheetName} - Row ${rowNumber}`;
-      console.log(`Using default title:`, title);
+      title = parts.length ? parts.join(' – ') : `${sheetName} – Row ${rowNumber}`;
     }
 
-    console.log('Generated title:', title);
-
-    // Create tags from schema column names and non-empty values
     const tags = [];
-    schema.forEach(column => {
+    schema.forEach((column) => {
       if (column.name && column.name !== `Column_${column.index + 1}`) {
         tags.push(column.name.toLowerCase().replace(/\s+/g, '-'));
       }
     });
-
-    // Add sheet name and row number as tags
     tags.push(sheetName.toLowerCase(), `row-${rowNumber}`);
 
-    // Create snippet from row data
     const rowDataString = JSON.stringify(structuredContent).substring(0, 500);
     const snippet = rowDataString + (JSON.stringify(structuredContent).length > 500 ? '...' : '');
-    
-    // Location information (cell range)
-    const cellRange = `${sheetName}!Row ${rowNumber}`;
-    
-    const card = {
-      title: title,
-      content: column2Content, // Store only column 2 value directly
-      type: 'concept', // Default type for Excel data
-      category: 'Data', // Default category for structured data
-      tags: tags.slice(0, 10), // Limit to 10 tags
+
+    return {
+      title: title || `${sheetName} – Row ${rowNumber}`,
+      content: truncatedContent,
+      type: 'concept',
+      category: 'Data',
+      tags: tags.slice(0, 10),
       source: `Excel: ${sheetName}`,
       metadata: {
         excelRow: rowNumber,
         excelSheet: sheetName,
         excelColumns: schema.length,
-        schema: schema.map(col => col.name),
-        structuredData: structuredContent
+        schema: schema.map((col) => col.name),
+        structuredData: structuredContent,
       },
       provenance: {
-        location: cellRange,
-        snippet: snippet
-      }
+        location: `${sheetName}!Row ${rowNumber}`,
+        snippet: snippet,
+      },
     };
-
-    console.log('Card created successfully:', card);
-    return card;
-    
   } catch (error) {
     console.error('Error creating card from Excel row:', error);
     return null;
@@ -557,20 +491,21 @@ Description: This is an image file that may contain visual information, charts, 
  */
 async function createCardsFromText(text, sourceFileName, filePath = null) {
   const cards = [];
-  
+  const rules = await getRules();
+
   // Split text into sections (paragraphs, sections, etc.)
   const sections = splitTextIntoSections(text);
-  
+
   for (let i = 0; i < sections.length; i++) {
     const section = sections[i];
     if (section.trim().length < 10) continue; // Skip very short sections
-    
-    const card = await createCardFromSection(section, sourceFileName, filePath, i + 1, sections.length);
+
+    const card = await createCardFromSection(section, sourceFileName, filePath, i + 1, sections.length, rules);
     if (card) {
       cards.push(card);
     }
   }
-  
+
   return cards;
 }
 
@@ -599,28 +534,30 @@ function splitTextIntoSections(text) {
 /**
  * Create a card from a text section
  */
-async function createCardFromSection(section, sourceFileName, filePath = null, sectionIndex = 1, totalSections = 1) {
+async function createCardFromSection(section, sourceFileName, filePath = null, sectionIndex = 1, totalSections = 1, rulesParam = null) {
   try {
+    const rules = rulesParam || await getRules();
+
     // Clean the text
     const cleanText = section.trim().replace(/\s+/g, ' ');
-    
+
     // Validate content is meaningful
     if (!hasMeaningfulContent(cleanText, 10)) {
       console.log(`Section ${sectionIndex} has no meaningful content, skipping`);
       return null;
     }
-    
+
     // Determine card type based on content
-    const cardType = determineCardType(cleanText);
-    
+    const cardType = determineCardType(cleanText, rules);
+
     // Generate title from content
     const title = generateTitle(cleanText, cardType);
-    
+
     // Determine category based on content
-    const category = determineCategory(cleanText);
-    
+    const category = determineCategory(cleanText, rules);
+
     // Extract tags
-    const tags = extractTags(cleanText);
+    const tags = extractTags(cleanText, rules);
     
     // Create snippet (first 500 chars of original section)
     const snippet = section.trim().substring(0, 500) + (section.trim().length > 500 ? '...' : '');
@@ -651,14 +588,16 @@ async function createCardFromSection(section, sourceFileName, filePath = null, s
 /**
  * Determine card type based on content analysis
  */
-function determineCardType(text) {
+function determineCardType(text, rules) {
+  if (!rules?.cardTypeKeywords) return 'concept';
+  const actionVerbsList = rules.actionVerbs || [];
   const lowerText = text.toLowerCase();
   const words = tokenizer.tokenize(lowerText);
-  
+
   // Count keyword matches for each card type
   const typeScores = {};
-  
-  for (const [type, keywords] of Object.entries(CARD_TYPE_KEYWORDS)) {
+
+  for (const [type, keywords] of Object.entries(rules.cardTypeKeywords)) {
     typeScores[type] = 0;
     for (const keyword of keywords) {
       if (lowerText.includes(keyword)) {
@@ -705,7 +644,7 @@ function determineCardType(text) {
     const trimmedLine = line.trim();
     if (trimmedLine.length > 0) {
       const firstWord = trimmedLine.split(/\s+/)[0].toLowerCase();
-      if (ACTION_VERBS.includes(firstWord)) {
+      if (actionVerbsList.includes(firstWord)) {
         imperativeCount++;
       }
     }
@@ -713,14 +652,14 @@ function determineCardType(text) {
   if (imperativeCount > 0) {
     typeScores.action += Math.min(imperativeCount, 3); // Cap at 3 points
   }
-  
+
   // Check for numbered action items (e.g., "1. Do this", "2. Do that")
   if (text.match(/^\s*\d+[\.\)]\s+[A-Z]/m)) {
     typeScores.action += 2;
   }
-  
+
   // Check for action verbs in the text (not just at start)
-  for (const verb of ACTION_VERBS) {
+  for (const verb of actionVerbsList) {
     const regex = new RegExp(`\\b${verb}\\b`, 'gi');
     const matches = text.match(regex);
     if (matches) {
@@ -792,14 +731,15 @@ function generateTitle(text, cardType) {
 /**
  * Determine category based on content with improved analysis
  */
-function determineCategory(text) {
+function determineCategory(text, rules) {
+  if (!rules?.categoryKeywords) return 'General';
   const lowerText = text.toLowerCase();
   const words = tokenizer.tokenize(lowerText);
-  
+
   // Calculate category scores based on keyword matches
   const categoryScores = {};
-  
-  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+
+  for (const [category, keywords] of Object.entries(rules.categoryKeywords)) {
     categoryScores[category] = 0;
     
     for (const keyword of keywords) {
@@ -892,13 +832,14 @@ function inferCategoryFromContext(text) {
 /**
  * Extract relevant tags from content
  */
-function extractTags(text) {
+function extractTags(text, rules) {
+  if (!rules?.categoryKeywords) return [];
   const lowerText = text.toLowerCase();
   const words = tokenizer.tokenize(lowerText);
   const tags = new Set();
-  
+
   // Add category keywords as tags
-  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+  for (const [category, keywords] of Object.entries(rules.categoryKeywords)) {
     for (const keyword of keywords) {
       if (lowerText.includes(keyword.toLowerCase())) {
         tags.add(keyword.toLowerCase());
@@ -923,10 +864,11 @@ function extractTags(text) {
 
 module.exports = {
   processContent,
+  extractTextOnly,
   createCardsFromText,
   createCardFromSection,
   determineCardType,
   generateTitle,
   determineCategory,
-  extractTags
+  extractTags,
 };

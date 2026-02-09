@@ -72,19 +72,39 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-// Reset password
+// Change password (logged-in user, from Settings)
+router.put('/password', async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'];
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    const result = await AuthService.changePassword(userId, currentPassword, newPassword);
+    res.json(result);
+  } catch (error) {
+    const status = error.message.includes('Current password is incorrect') ? 400 : 400;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+// Reset password (from forgot-password link)
 router.post('/reset-password', async (req, res) => {
   try {
     const { token, newPassword } = req.body;
 
     if (!token || !newPassword) {
-      return res.status(400).json({ error: 'Token and new password are required' });
+      return res.status(400).json({ error: 'Token and new password are required. Please use the link from your email.' });
     }
 
     const result = await AuthService.resetPassword(token, newPassword);
     res.json(result);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('[Auth] Reset password failed:', error.message);
+    const status = error.message.includes('at least 6') ? 400 : 400;
+    res.status(status).json({ error: error.message });
   }
 });
 

@@ -18,6 +18,7 @@ import {
   Check
 } from 'lucide-react';
 import { checkAIStatusAsync, regenerateCardAsync } from '../store/slices/cardSlice';
+import { getAIDisplayName } from '../utils/aiUtils';
 import { toast } from 'react-hot-toast';
 
 // Component to highlight snippet in source file content
@@ -626,7 +627,7 @@ const CardDetailModal = ({
                           return;
                         }
                         if (!aiStatus.available) {
-                          toast.error(aiStatus.error || 'AI is not available. Please check Ollama configuration.');
+                          toast.error(aiStatus.error || 'AI is not available. Please check AI configuration in Administration → AI Settings.');
                           return;
                         }
                         try {
@@ -702,8 +703,8 @@ const CardDetailModal = ({
                         aiStatus.checking 
                           ? 'Checking AI availability...'
                           : aiStatus.available 
-                          ? 'Regenerate using AI and compare with rule-based (requires Ollama)'
-                          : aiStatus.error || 'AI (Ollama) is not available. See tooltip for details.'
+                          ? `Regenerate using AI and compare with rule-based (${getAIDisplayName(aiStatus)})`
+                          : aiStatus.error || 'AI is not available. See tooltip for details.'
                       }
                     >
                       {loading || loadingComparison ? (
@@ -724,7 +725,7 @@ const CardDetailModal = ({
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                      Rule-based: Fast and deterministic. AI: Better quality, requires Ollama.
+                      Rule-based: Fast and deterministic. AI: Better quality (requires configured AI in Administration → AI Settings).
                     </p>
                     {aiStatus.checking && (
                       <p className="text-xs text-blue-500 dark:text-blue-400 text-center">
@@ -742,7 +743,7 @@ const CardDetailModal = ({
                     )}
                     {!aiStatus.checking && aiStatus.available && (
                       <p className="text-xs text-green-600 dark:text-green-400 text-center">
-                        ✓ AI (Ollama) is available and ready
+                        ✓ AI ({getAIDisplayName(aiStatus)}) is available and ready
                       </p>
                     )}
                   </div>

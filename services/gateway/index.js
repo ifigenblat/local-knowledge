@@ -1,4 +1,6 @@
 const express = require('express');
+const path = require('path');
+const { spawn } = require('child_process');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
@@ -124,6 +126,7 @@ const createServiceProxy = (serviceName, target) => {
       if (req.user) {
         proxyReq.setHeader('X-User-Id', req.user.id);
         proxyReq.setHeader('X-User-Email', req.user.email);
+        if (req.user.role?.name) proxyReq.setHeader('X-User-Role', req.user.role.name);
       }
     },
     onProxyRes: (proxyRes, req, res) => {
@@ -181,6 +184,7 @@ app.use('/api/cards', validateToken, createProxyMiddleware({
     if (req.user) {
       proxyReq.setHeader('X-User-Id', req.user.id);
       proxyReq.setHeader('X-User-Email', req.user.email);
+      if (req.user.role?.name) proxyReq.setHeader('X-User-Role', req.user.role.name);
     }
   },
 }));
@@ -206,15 +210,16 @@ app.use('/api/collections', validateToken, createProxyMiddleware({
     if (req.user) {
       proxyReq.setHeader('X-User-Id', req.user.id);
       proxyReq.setHeader('X-User-Email', req.user.email);
+      if (req.user.role?.name) proxyReq.setHeader('X-User-Role', req.user.role.name);
     }
   },
 }));
-// Upload service: receives multipart, saves file, calls backend to process
+// Upload service: receives multipart, saves file, may call AI for card generation (long-running)
 app.use('/api/upload', validateToken, createProxyMiddleware({
   target: SERVICES.upload,
   changeOrigin: true,
-  timeout: 60000,
-  proxyTimeout: 60000,
+  timeout: 300000,
+  proxyTimeout: 300000,
   pathRewrite: (path, req) => req.originalUrl || path,
   onError: (err, req, res) => {
     console.error('Error proxying to upload service:', err.message);
@@ -230,6 +235,7 @@ app.use('/api/upload', validateToken, createProxyMiddleware({
     if (req.user) {
       proxyReq.setHeader('X-User-Id', req.user.id);
       proxyReq.setHeader('X-User-Email', req.user.email);
+      if (req.user.role?.name) proxyReq.setHeader('X-User-Role', req.user.role.name);
     }
   },
 }));
@@ -253,6 +259,7 @@ app.use('/api/content', validateToken, createProxyMiddleware({
     if (req.user) {
       proxyReq.setHeader('X-User-Id', req.user.id);
       proxyReq.setHeader('X-User-Email', req.user.email);
+      if (req.user.role?.name) proxyReq.setHeader('X-User-Role', req.user.role.name);
     }
   },
 }));
@@ -288,6 +295,7 @@ app.use('/api/files', validateToken, createProxyMiddleware({
     if (req.user) {
       proxyReq.setHeader('X-User-Id', req.user.id);
       proxyReq.setHeader('X-User-Email', req.user.email);
+      if (req.user.role?.name) proxyReq.setHeader('X-User-Role', req.user.role.name);
     }
   },
   onError: (err, req, res) => {
@@ -321,14 +329,15 @@ app.use('/api/preview', validateToken, createProxyMiddleware({
     if (req.user) {
       proxyReq.setHeader('X-User-Id', req.user.id);
       proxyReq.setHeader('X-User-Email', req.user.email);
+      if (req.user.role?.name) proxyReq.setHeader('X-User-Role', req.user.role.name);
     }
   },
 }));
 app.use('/api/ai', validateToken, createProxyMiddleware({
   target: SERVICES.ai,
   changeOrigin: true,
-  timeout: 35000,
-  proxyTimeout: 35000,
+  timeout: 180000,
+  proxyTimeout: 180000,
   pathRewrite: (path, req) => (req.originalUrl || path).replace(/^\/api\/ai/, ''),
   onError: (err, req, res) => {
     console.error('Error proxying to AI service:', err.message);
@@ -344,6 +353,7 @@ app.use('/api/ai', validateToken, createProxyMiddleware({
     if (req.user) {
       proxyReq.setHeader('X-User-Id', req.user.id);
       proxyReq.setHeader('X-User-Email', req.user.email);
+      if (req.user.role?.name) proxyReq.setHeader('X-User-Role', req.user.role.name);
     }
   },
 }));
@@ -364,6 +374,90 @@ app.use('/uploads', validateToken, createProxyMiddleware({
     }
   },
 }));
+
+// Run local AI install/start script (superadmin only). Uses scripts in services/scripts/local-ai/.
+const ALLOWED_ACTIONS = {
+  install_ollama: 'install-ollama.sh',
+  start_localai: 'start-localai.sh',
+  start_llamacpp: 'start-llamacpp.sh',
+  download_llamacpp_model: 'download-llamacpp-model.sh',
+};
+const LONG_TIMEOUT_MS = 300000; // 5 min for download
+const SERVICES_DIR = path.resolve(__dirname, '..');
+
+app.post('/api/admin/run-local-ai-setup', express.json(), validateToken, async (req, res) => {
+  if (req.user.role?.name !== 'superadmin') {
+    return res.status(403).json({ error: 'Only Super Administrator can run local AI setup' });
+  }
+  const { action, port } = req.body || {};
+  const scriptName = typeof action === 'string' ? ALLOWED_ACTIONS[action] : undefined;
+  if (!scriptName) {
+    return res.status(400).json({ error: 'Invalid action. Use: install_ollama, start_localai, start_llamacpp, download_llamacpp_model' });
+  }
+  const isLongRunning = action === 'download_llamacpp_model';
+  const timeoutMs = isLongRunning ? LONG_TIMEOUT_MS : 120000;
+  const scriptPath = path.join(SERVICES_DIR, 'scripts', 'local-ai', scriptName);
+  const fs = require('fs');
+  if (!fs.existsSync(scriptPath)) {
+    return res.status(400).json({ error: `Script not found: ${scriptPath}` });
+  }
+  const portNum = port != null ? parseInt(Number(port), 10) : null;
+  if (port != null && (Number.isNaN(portNum) || portNum < 1024 || portNum > 65535)) {
+    return res.status(400).json({ error: 'Port must be between 1024 and 65535' });
+  }
+  const env = { ...process.env };
+  if (portNum != null) env.PORT = String(portNum);
+  // Ensure Docker and common tools are on PATH when gateway runs from GUI or systemd
+  const pathExtra = ['/usr/local/bin', '/opt/homebrew/bin'].filter(p => p && !(env.PATH || '').includes(p));
+  if (pathExtra.length) env.PATH = [env.PATH, ...pathExtra].filter(Boolean).join(':');
+  return new Promise((resolve) => {
+    const child = spawn('bash', [scriptPath], {
+      env,
+      cwd: SERVICES_DIR,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (d) => { stdout += d.toString(); });
+    child.stderr.on('data', (d) => { stderr += d.toString(); });
+    const timeout = setTimeout(() => {
+      child.kill('SIGTERM');
+      if (!res.headersSent) {
+        res.status(408).json({
+          ok: false,
+          error: isLongRunning ? 'Download timed out (5 min)' : 'Script timed out (2 min)',
+          stdout: stdout.slice(-2000),
+          stderr: stderr.slice(-2000),
+        });
+        resolve();
+      }
+    }, timeoutMs);
+    child.on('close', (code, signal) => {
+      clearTimeout(timeout);
+      if (res.headersSent) return resolve();
+      const out = stdout.slice(-8000);
+      const err = stderr.slice(-8000);
+      const errorMsg = code !== 0
+        ? (stderr.trim() || stdout.trim()).slice(-600) || `Script exited with code ${code}`
+        : undefined;
+      res.status(200).json({
+        ok: code === 0,
+        code: code ?? signal,
+        stdout: out,
+        stderr: err,
+        ...(code !== 0 && { error: errorMsg }),
+      });
+      resolve();
+    });
+    child.on('error', (err) => {
+      clearTimeout(timeout);
+      if (!res.headersSent) {
+        res.status(500).json({ ok: false, error: err.message, stdout: '', stderr: '' });
+        resolve();
+      }
+    });
+  });
+});
 
 // Prometheus-style metrics (service health as gauge)
 app.get('/metrics', async (req, res) => {

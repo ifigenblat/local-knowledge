@@ -20,7 +20,10 @@ import {
   Quote,
   CheckSquare,
   Network,
-  Plus
+  Plus,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import CardDetailModal from '../components/CardDetailModal';
 
@@ -53,6 +56,11 @@ const Cards = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
   const [selectedSourceFileType, setSelectedSourceFileType] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [dateFilterError, setDateFilterError] = useState('');
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [appliedSearch, setAppliedSearch] = useState('');
@@ -76,6 +84,26 @@ const Cards = () => {
   const [selectedCardIds, setSelectedCardIds] = useState(new Set());
   const [showBulkAddModal, setShowBulkAddModal] = useState(false);
 
+  // Validate date filter: valid date, no future, start not after end
+  const validateDateFilter = (from, to) => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (from) {
+      const dFrom = new Date(from + 'T00:00:00');
+      if (isNaN(dFrom.getTime())) return { valid: false, error: 'Start date is not a valid date.' };
+      if (dFrom > today) return { valid: false, error: 'Start date cannot be in the future.' };
+    }
+    if (to) {
+      const dTo = new Date(to + 'T00:00:00');
+      if (isNaN(dTo.getTime())) return { valid: false, error: 'End date is not a valid date.' };
+      if (dTo > today) return { valid: false, error: 'End date cannot be in the future.' };
+    }
+    if (from && to && new Date(from) > new Date(to)) {
+      return { valid: false, error: 'Start date cannot be after end date.' };
+    }
+    return { valid: true, error: '' };
+  };
+
   // Debounce search: apply after 400ms of no typing
   useEffect(() => {
     const t = setTimeout(() => {
@@ -87,15 +115,25 @@ const Cards = () => {
 
   // Fetch cards and count with server-side pagination and filters
   useEffect(() => {
+    const validation = validateDateFilter(dateFrom, dateTo);
+    if (!validation.valid) {
+      setDateFilterError(validation.error);
+    } else {
+      setDateFilterError('');
+    }
     const filters = {
       search: appliedSearch || undefined,
       type: selectedType !== 'all' ? selectedType : undefined,
       category: selectedCategory !== 'all' ? selectedCategory : undefined,
       sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
+      dateFrom: validation.valid && dateFrom ? dateFrom : undefined,
+      dateTo: validation.valid && dateTo ? dateTo : undefined,
+      sortBy,
+      sortOrder,
     };
     dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
     dispatch(fetchCardsCount(filters));
-  }, [currentPage, pageSize, appliedSearch, selectedType, selectedCategory, selectedSourceFileType, dispatch]);
+  }, [currentPage, pageSize, appliedSearch, selectedType, selectedCategory, selectedSourceFileType, dateFrom, dateTo, sortBy, sortOrder, dispatch]);
 
   useEffect(() => {
     dispatch(fetchCollections());
@@ -178,6 +216,10 @@ const Cards = () => {
         type: selectedType !== 'all' ? selectedType : undefined,
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
         sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        sortBy,
+        sortOrder,
       };
       dispatch(fetchCards({ page: 1, limit: pageSize, ...filters }));
     } catch (error) {
@@ -216,6 +258,10 @@ const Cards = () => {
         type: selectedType !== 'all' ? selectedType : undefined,
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
         sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        sortBy,
+        sortOrder,
       };
       dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
     } catch (error) {
@@ -234,6 +280,10 @@ const Cards = () => {
         type: selectedType !== 'all' ? selectedType : undefined,
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
         sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        sortBy,
+        sortOrder,
       };
       dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
     } else {
@@ -250,6 +300,10 @@ const Cards = () => {
           type: selectedType !== 'all' ? selectedType : undefined,
           category: selectedCategory !== 'all' ? selectedCategory : undefined,
           sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          sortBy,
+          sortOrder,
         };
         dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
       } catch (error) {
@@ -312,6 +366,36 @@ const Cards = () => {
     }
   };
 
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const SortHeader = ({ column, label, className = '' }) => {
+    const isActive = sortBy === column;
+    return (
+      <th
+        className={`${className} cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors`}
+        onClick={() => handleSort(column)}
+        title={`Sort by ${label}`}
+      >
+        <div className="flex items-center gap-1">
+          {label}
+          {isActive ? (
+            sortOrder === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+          ) : (
+            <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />
+          )}
+        </div>
+      </th>
+    );
+  };
+
   const isCardInCollection = (collection, cardId) => {
     return collection.cards && collection.cards.some(
       card => (typeof card === 'string' ? card : card._id) === cardId
@@ -333,6 +417,22 @@ const Cards = () => {
   });
 
   const handleClearCollectionFilter = () => {
+    setSearchParams({});
+    setSelectedCollection(null);
+  };
+
+  const hasActiveFilters = searchTerm || appliedSearch || selectedCategory !== 'all' || selectedType !== 'all' || selectedSourceFileType !== 'all' || dateFrom || dateTo || selectedCollection;
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setAppliedSearch('');
+    setSelectedCategory('all');
+    setSelectedType('all');
+    setSelectedSourceFileType('all');
+    setDateFrom('');
+    setDateTo('');
+    setDateFilterError('');
+    setCurrentPage(1);
     setSearchParams({});
     setSelectedCollection(null);
   };
@@ -424,6 +524,10 @@ const Cards = () => {
         type: selectedType !== 'all' ? selectedType : undefined,
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
         sourceFileType: selectedSourceFileType !== 'all' ? selectedSourceFileType : undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        sortBy,
+        sortOrder,
       };
       dispatch(fetchCards({ page: currentPage, limit: pageSize, ...filters }));
     } catch (error) {
@@ -587,7 +691,65 @@ const Cards = () => {
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
+
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-stretch sm:items-end">
+            <div className="flex flex-col gap-0.5">
+              <label htmlFor="cards-date-from" className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                Start date
+              </label>
+              <input
+                id="cards-date-from"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setCurrentPage(1);
+                }}
+                max={dateTo || undefined}
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent invalid:border-red-500"
+                title="Filter by creation date from (no future dates)"
+                aria-invalid={!!dateFilterError}
+                aria-describedby={dateFilterError ? 'cards-date-error' : undefined}
+              />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <label htmlFor="cards-date-to" className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                End date
+              </label>
+              <input
+                id="cards-date-to"
+                type="date"
+                value={dateTo}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setCurrentPage(1);
+                }}
+                min={dateFrom || undefined}
+                max={new Date().toISOString().slice(0, 10)}
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent invalid:border-red-500"
+                title="Filter by creation date to (no future dates)"
+                aria-invalid={!!dateFilterError}
+                aria-describedby={dateFilterError ? 'cards-date-error' : undefined}
+              />
+            </div>
+          </div>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors self-end"
+              title="Clear all filters"
+            >
+              <X className="h-4 w-4" />
+              Clear filters
+            </button>
+          )}
         </div>
+        {dateFilterError && (
+          <p id="cards-date-error" className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">
+            {dateFilterError}
+          </p>
+        )}
       </div>
 
       {/* Results area: show loading below search so search input stays mounted and keeps focus */}
@@ -667,21 +829,11 @@ const Cards = () => {
                       title="Select All"
                     />
                   </th>
-                  <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Card
-                  </th>
-                  <th className="hidden sm:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th className="hidden lg:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Source
-                  </th>
-                  <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Generated
-                  </th>
+                  <SortHeader column="title" label="Card" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider" />
+                  <SortHeader column="type" label="Type" className="hidden sm:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider" />
+                  <SortHeader column="category" label="Category" className="hidden md:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider" />
+                  <SortHeader column="source" label="Source" className="hidden lg:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider" />
+                  <SortHeader column="generatedBy" label="Generated" className="hidden md:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider" />
                   <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Actions
                   </th>

@@ -1,10 +1,8 @@
 const express = require('express');
 const cors = require('cors');
-const mongoose = require('mongoose');
+const path = require('path');
 require('dotenv').config();
 
-// Register Card model so Collection.populate('cards') works (ref: 'Card')
-require('./models/Card');
 const collectionRoutes = require('./routes/collectionRoutes');
 
 const app = express();
@@ -29,6 +27,7 @@ app.get('/health', (req, res) => {
   res.json({
     service: 'collection-service',
     status: 'healthy',
+    database: 'postgresql',
     timestamp: new Date().toISOString(),
   });
 });
@@ -45,16 +44,10 @@ app.use((err, req, res, next) => {
 
 const startServer = async () => {
   try {
-    const mongoURI =
-      process.env.MONGODB_URI || 'mongodb://localhost:27017/local-knowledge';
-    await mongoose.connect(mongoURI);
-    console.log(
-      '✅ Collection Service MongoDB connected (readyState:',
-      mongoose.connection.readyState,
-      ')'
-    );
+    const { initPostgres } = require(path.join(__dirname, '../../shared/postgres'));
+    await initPostgres();
     app.listen(PORT, () => {
-      console.log(`🚀 Collection Service running on port ${PORT}`);
+      console.log(`🚀 Collection Service running on port ${PORT} (PostgreSQL)`);
     });
   } catch (error) {
     console.error('Failed to start Collection Service:', error);

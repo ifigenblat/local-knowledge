@@ -4,7 +4,7 @@ A full-stack React and Node.js application that automatically creates interactiv
 
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
-[![MongoDB](https://img.shields.io/badge/MongoDB-5+-green.svg)](https://mongodb.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-blue.svg)](https://postgresql.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ## Features
@@ -38,8 +38,8 @@ A full-stack React and Node.js application that automatically creates interactiv
 ## Tech Stack
 
 ### Backend
-- **Node.js** with Express
-- **MongoDB** with Mongoose
+- **Node.js** with Express (microservices)
+- **PostgreSQL** with Sequelize
 - **JWT Authentication**
 - **bcryptjs** for password hashing
 - **Multer** for file uploads
@@ -64,15 +64,15 @@ A full-stack React and Node.js application that automatically creates interactiv
 
 ### Prerequisites
 - Node.js (v16 or higher)
-- MongoDB (local or cloud)
+- PostgreSQL (local or Docker)
 - npm or yarn
-- Docker (for MongoDB container)
+- Docker (optional, for PostgreSQL container)
 - Ollama (optional, for AI-powered card regeneration)
 
-### 🐳 Docker Setup (Recommended)
+### 🐳 Docker Setup (PostgreSQL)
 ```bash
-# Start MongoDB with Docker
-docker run -d --name mongodb -p 27017:27017 mongo:latest
+# Start PostgreSQL with Docker
+docker run -d -p 5432:5432 -e POSTGRES_USER=localknowledge -e POSTGRES_PASSWORD=localknowledge -e POSTGRES_DB=localknowledge --name postgres postgres:16-alpine
 ```
 
 ### Installation
@@ -85,36 +85,25 @@ docker run -d --name mongodb -p 27017:27017 mongo:latest
 
 2. **Install dependencies**
    ```bash
-   # Install root dependencies
    npm install
-   
-   # Install backend dependencies
-   cd server && npm install
-   
-   # Install frontend dependencies
-   cd ../client && npm install
+   cd client && npm install
+   cd ../services && npm install
+   # Install dependencies in individual services as needed (start-all.sh can run from services/)
    ```
 
 3. **Environment Setup**
    
-   Create a `.env` file in the `server` directory:
+   Create a `.env` file in the `services` directory (or set `DATABASE_URL` when running):
    ```env
-   PORT=5001
-   MONGODB_URI=mongodb://localhost:27017/local-knowledge
+   DATABASE_URL=postgresql://localknowledge:localknowledge@localhost:5432/localknowledge
    JWT_SECRET=your-secret-key-here-make-this-secure-in-production
-   NODE_ENV=development
    CLIENT_URL=http://localhost:3000
    
-   # Email Configuration (Local Development)
+   # Email (development)
    MAILHOG_HOST=127.0.0.1
    MAILHOG_PORT=1025
    
-   # For Gmail SMTP (Optional - for production):
-   # SMTP_USER=your-email@gmail.com
-   # SMTP_PASS=your-app-password
-   
-   # AI Configuration (Optional - for AI-powered card regeneration)
-   # Uncomment and configure if you want to use Ollama for AI regeneration
+   # AI (optional)
    # OLLAMA_ENABLED=true
    # OLLAMA_API_URL=http://localhost:11434
    # OLLAMA_MODEL=llama2
@@ -198,7 +187,7 @@ cd client
 npm start
 ```
 
-Or from repo root: `npm run dev:microservices` (starts all services then frontend). Ensure MongoDB is running first (`docker start mongodb` or `docker run -d -p 27017:27017 mongo:7`).
+Or from repo root: `npm run dev:microservices` (starts all services then frontend). Ensure PostgreSQL is running first (e.g. Docker: `docker run -d -p 5432:5432 -e POSTGRES_USER=localknowledge -e POSTGRES_PASSWORD=localknowledge -e POSTGRES_DB=localknowledge postgres:16-alpine`).
 
 **Services** (all proxied via API Gateway on port 8000):
 | Service | Port | Description |
@@ -227,14 +216,13 @@ cd services
 docker-compose up -d
 ```
 
-Starts MongoDB + all microservices. See `services/docker-compose.yml` for configuration.
+Starts PostgreSQL + all microservices. See `services/docker-compose.yml` for configuration.
 
 ## Project Structure
 
 ```
 local-knowledge/
-├── server/                 # Backend Node.js application
-│   ├── models/            # MongoDB schemas
+├── server/                 # (Deprecated) Legacy monolith; use services/ instead
 │   ├── routes/            # API routes
 │   ├── middleware/        # Express middleware
 │   ├── utils/             # Utility functions
@@ -414,14 +402,14 @@ Cards can be regenerated from their provenance snippets using two methods:
 
 ### Adding New Card Types
 
-1. Update the `CARD_TYPE_KEYWORDS` in `server/utils/contentProcessor.js`
+1. Update the `CARD_TYPE_KEYWORDS` in `services/content-processing-service` (content processor)
 2. Add corresponding icons in `client/src/components/Card.js`
 3. Update the card type colors and styling
 
 ### Custom File Processing
 
-1. Add new file type handlers in `server/utils/contentProcessor.js`
-2. Update the file filter in `server/routes/upload.js`
+1. Add new file type handlers in `services/content-processing-service`
+2. Update the file filter in `services/upload-service` and gateway routing
 3. Add corresponding MIME types and extensions
 
 ## Deployment
@@ -429,7 +417,7 @@ Cards can be regenerated from their provenance snippets using two methods:
 ### Backend Deployment
 
 1. Set up environment variables for production
-2. Configure MongoDB connection
+2. Configure PostgreSQL connection (DATABASE_URL)
 3. Set up file storage (consider cloud storage for production)
 4. Deploy to your preferred platform (Heroku, AWS, etc.)
 
@@ -456,7 +444,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - Built with React and Node.js
-- Uses MongoDB for data storage
+- Uses PostgreSQL for data storage (microservices)
 - Styled with Tailwind CSS
 - Icons by Lucide React
 

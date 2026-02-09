@@ -1,64 +1,74 @@
 version: '3.8'
 
 services:
-  mongodb:
-    image: mongo:7
-    container_name: localknowledge-mongodb
+  postgres:
+    image: postgres:16-alpine
+    container_name: localknowledge-postgres
     ports:
-      - "27017:27017"
+      - "5432:5432"
     environment:
-      MONGO_INITDB_DATABASE: local-knowledge
+      POSTGRES_USER: localknowledge
+      POSTGRES_PASSWORD: localknowledge
+      POSTGRES_DB: localknowledge
     volumes:
-      - mongodb_data:/data/db
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - microservices-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U localknowledge"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   auth-service:
     build:
-      context: ./auth-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: auth-service/Dockerfile
     container_name: auth-service
     ports:
       - "5001:5001"
     environment:
-      MONGODB_URI: mongodb://mongodb:27017/local-knowledge
+      DATABASE_URL: postgresql://localknowledge:localknowledge@postgres:5432/localknowledge
       USER_SERVICE_URL: http://user-service:5002
       ROLE_SERVICE_URL: http://role-service:5003
       JWT_SECRET: ${JWT_SECRET:-your-secret-key}
       PORT: 5001
     depends_on:
-      - mongodb
+      postgres:
+        condition: service_healthy
     networks:
       - microservices-network
 
   user-service:
     build:
-      context: ./user-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: user-service/Dockerfile
     container_name: user-service
     ports:
       - "5002:5002"
     environment:
-      MONGODB_URI: mongodb://mongodb:27017/local-knowledge
+      DATABASE_URL: postgresql://localknowledge:localknowledge@postgres:5432/localknowledge
       ROLE_SERVICE_URL: http://role-service:5003
       PORT: 5002
     depends_on:
-      - mongodb
+      postgres:
+        condition: service_healthy
     networks:
       - microservices-network
 
   role-service:
     build:
-      context: ./role-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: role-service/Dockerfile
     container_name: role-service
     ports:
       - "5003:5003"
     environment:
-      MONGODB_URI: mongodb://mongodb:27017/local-knowledge
+      DATABASE_URL: postgresql://localknowledge:localknowledge@postgres:5432/localknowledge
       PORT: 5003
     depends_on:
-      - mongodb
+      postgres:
+        condition: service_healthy
     networks:
       - microservices-network
 
@@ -70,11 +80,12 @@ services:
     ports:
       - "5004:5004"
     environment:
-      MONGODB_URI: mongodb://mongodb:27017/local-knowledge
+      DATABASE_URL: postgresql://localknowledge:localknowledge@postgres:5432/localknowledge
       BACKEND_SERVICE_URL: http://host.docker.internal:5010
       PORT: 5004
     depends_on:
-      - mongodb
+      postgres:
+        condition: service_healthy
     networks:
       - microservices-network
 
@@ -86,10 +97,11 @@ services:
     ports:
       - "5005:5005"
     environment:
-      MONGODB_URI: mongodb://mongodb:27017/local-knowledge
+      DATABASE_URL: postgresql://localknowledge:localknowledge@postgres:5432/localknowledge
       PORT: 5005
     depends_on:
-      - mongodb
+      postgres:
+        condition: service_healthy
     networks:
       - microservices-network
 
@@ -172,19 +184,20 @@ services:
 
   files-service:
     build:
-      context: ./files-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: files-service/Dockerfile
     container_name: files-service
     ports:
       - "5012:5012"
     environment:
-      MONGODB_URI: mongodb://mongodb:27017/local-knowledge
+      DATABASE_URL: postgresql://localknowledge:localknowledge@postgres:5432/localknowledge
       UPLOAD_DIR: /app/uploads
       PORT: 5012
     volumes:
       - uploads_data:/app/uploads
     depends_on:
-      - mongodb
+      postgres:
+        condition: service_healthy
     networks:
       - microservices-network
 
@@ -236,7 +249,7 @@ services:
       - microservices-network
 
 volumes:
-  mongodb_data:
+  postgres_data:
   uploads_data:
 
 networks:

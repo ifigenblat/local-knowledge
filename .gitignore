@@ -98,6 +98,20 @@ Thumbs.db
 server/uploads/*
 !server/uploads/.gitkeep
 
+# Local AI models (GGUF, etc.) – do not commit large binaries
+services/.models/
+
+# AI/app settings (may contain API keys)
+services/config/settings.json
+
+# User uploads in services
+services/uploads/*
+!services/uploads/.gitkeep
+
+# Accidental runtime/cache files
+server/ai-service@1.0.0
+server/node
+
 # Exports folder (sample content files)
 Exports/
 

@@ -4,7 +4,7 @@
   "description": "AI microservice for LocalKnowledge - Ollama-powered card regeneration",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node --max-old-space-size=4096 src/index.js",
     "dev": "nodemon src/index.js",
     "test:endpoints": "node test-ai-endpoints.js"
   },

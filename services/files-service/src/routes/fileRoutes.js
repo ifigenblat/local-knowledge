@@ -1,17 +1,27 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const Card = require('../models/Card');
-const Collection = require('../models/Collection');
-
 const router = express.Router();
+const { getSequelize } = require(path.join(__dirname, '../../../shared/postgres/database'));
 
-const getUploadDir = () => {
+let Card, Collection;
+
+async function getModels() {
+  if (!Card) {
+    const { initPostgres } = require(path.join(__dirname, '../../../shared/postgres'));
+    const models = await initPostgres();
+    Card = models.Card;
+    Collection = models.Collection;
+  }
+  return { Card, Collection };
+}
+
+function getUploadDir() {
   const dir = process.env.UPLOAD_DIR;
   if (dir && path.isAbsolute(dir)) return dir;
   if (dir) return path.resolve(process.cwd(), dir);
-  return path.resolve(process.cwd(), '../../server/uploads');
-};
+  return path.resolve(process.cwd(), '../uploads');
+}
 
 function requireUser(req, res, next) {
   if (!req.user || !req.user.id) {
@@ -32,6 +42,7 @@ function getFileType(filename) {
 
 router.get('/', async (req, res) => {
   try {
+    const { Card } = await getModels();
     const userId = req.user.id;
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
@@ -40,28 +51,29 @@ router.get('/', async (req, res) => {
     const sortBy = (req.query.sortBy || 'name').toLowerCase();
     const sortOrder = (req.query.sortOrder || 'asc').toLowerCase();
 
-    const cards = await Card.find({ user: userId })
-      .select('attachments provenance source createdAt')
-      .lean();
+    const sequelize = getSequelize();
+    const rows = await Card.findAll({
+      where: { userId },
+      attributes: ['id', 'attachments', 'provenance', 'source', [sequelize.col('created_at'), 'createdAt']],
+      raw: true,
+    });
 
     const fileMap = new Map();
-    for (const card of cards) {
+    for (const card of rows) {
       const filenames = new Set();
-      if (card.attachments && card.attachments.length > 0) {
-        for (const att of card.attachments) {
-          if (att.filename) filenames.add(att.filename);
-        }
+      const attachments = card.attachments || [];
+      for (const att of attachments) {
+        if (att && att.filename) filenames.add(att.filename);
       }
-      if (card.provenance?.source_file_id) {
-        filenames.add(card.provenance.source_file_id);
-      }
+      const prov = card.provenance || {};
+      if (prov.source_file_id) filenames.add(prov.source_file_id);
       const cardCreated = card.createdAt ? new Date(card.createdAt).getTime() : null;
       for (const fn of filenames) {
         if (!fileMap.has(fn)) {
-          const att = card.attachments?.find(a => a.filename === fn);
+          const att = attachments.find((a) => a && a.filename === fn);
           fileMap.set(fn, {
             filename: fn,
-            originalName: att?.originalName || fn,
+            originalName: (att && att.originalName) || fn,
             cardCount: 0,
             cardIds: [],
             earliestCardAt: cardCreated,
@@ -69,8 +81,9 @@ router.get('/', async (req, res) => {
         }
         const entry = fileMap.get(fn);
         entry.cardCount += 1;
-        if (card._id && !entry.cardIds.includes(card._id.toString())) {
-          entry.cardIds.push(card._id.toString());
+        const cid = card.id;
+        if (cid && !entry.cardIds.includes(String(cid))) {
+          entry.cardIds.push(String(cid));
         }
         if (cardCreated != null && (entry.earliestCardAt == null || cardCreated < entry.earliestCardAt)) {
           entry.earliestCardAt = cardCreated;
@@ -80,7 +93,7 @@ router.get('/', async (req, res) => {
 
     const uploadDir = getUploadDir();
     const fileList = Array.from(fileMap.values());
-    const filesWithStats = fileList.map((f) => {
+    let files = fileList.map((f) => {
       let uploadedAt = null;
       if (f.earliestCardAt != null) {
         uploadedAt = new Date(f.earliestCardAt).toISOString();
@@ -91,7 +104,7 @@ router.get('/', async (req, res) => {
           const stat = fs.statSync(filePath);
           uploadedAt = stat.mtime ? stat.mtime.toISOString() : null;
         } catch {
-          /* file may not exist on disk */
+          /* ignore */
         }
       }
       return {
@@ -102,39 +115,29 @@ router.get('/', async (req, res) => {
         uploadedAt,
       };
     });
-    let files = filesWithStats;
 
     if (search) {
       files = files.filter(
-        f =>
-          f.originalName.toLowerCase().includes(search) ||
-          f.filename.toLowerCase().includes(search)
+        (f) =>
+          (f.originalName || '').toLowerCase().includes(search) ||
+          (f.filename || '').toLowerCase().includes(search)
       );
     }
-
     if (typeFilter) {
       files = files.filter((f) => (f.fileType || '').toLowerCase() === typeFilter);
     }
 
-    // Sort
     const order = sortOrder === 'desc' ? -1 : 1;
     if (sortBy === 'type') {
-      files.sort((a, b) => {
-        const cmp = (a.fileType || '').localeCompare(b.fileType || '');
-        return cmp * order;
-      });
+      files.sort((a, b) => (a.fileType || '').localeCompare(b.fileType || '') * order);
     } else if (sortBy === 'date') {
-      files.sort((a, b) => {
-        const aDate = a.uploadedAt || '';
-        const bDate = b.uploadedAt || '';
-        const cmp = aDate.localeCompare(bDate);
-        return cmp * order;
-      });
+      files.sort((a, b) => (a.uploadedAt || '').localeCompare(b.uploadedAt || '') * order);
     } else {
-      files.sort((a, b) => {
-        const cmp = (a.originalName || a.filename || '').localeCompare(b.originalName || b.filename || '', undefined, { sensitivity: 'base' });
-        return cmp * order;
-      });
+      files.sort((a, b) =>
+        (a.originalName || a.filename || '').localeCompare(b.originalName || b.filename || '', undefined, {
+          sensitivity: 'base',
+        }) * order
+      );
     }
 
     const total = files.length;
@@ -144,14 +147,7 @@ router.get('/', async (req, res) => {
 
     res.json({
       files,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
-      },
+      pagination: { page, limit, total, totalPages, hasNext: page < totalPages, hasPrev: page > 1 },
     });
   } catch (error) {
     console.error('List files error:', error);
@@ -168,25 +164,34 @@ router.delete('/:filename', async (req, res) => {
       return res.status(400).json({ error: 'Invalid filename' });
     }
 
-    const cards = await Card.find({
-      user: userId,
-      $or: [
-        { 'attachments.filename': filename },
-        { 'provenance.source_file_id': filename },
-      ],
+    const { Card, Collection } = await getModels();
+
+    const rows = await Card.findAll({
+      where: { userId },
+      attributes: ['id', 'attachments', 'provenance'],
+      raw: true,
     });
 
-    const cardIds = cards.map(c => c._id);
+    const cardIds = rows
+      .filter((c) => {
+        const att = c.attachments || [];
+        if (att.some((a) => a && a.filename === filename)) return true;
+        if ((c.provenance || {}).source_file_id === filename) return true;
+        return false;
+      })
+      .map((c) => c.id);
 
-    await Collection.updateMany(
-      { cards: { $in: cardIds } },
-      { $pullAll: { cards: cardIds } }
-    );
-
-    const deleteResult = await Card.deleteMany({
-      _id: { $in: cardIds },
-      user: userId,
-    });
+    if (cardIds.length) {
+      const { getSequelize } = require(path.join(__dirname, '../../../shared/postgres/database'));
+      const sequelize = getSequelize();
+      if (sequelize) {
+        const placeholders = cardIds.map(() => '?').join(',');
+        await sequelize.query(`DELETE FROM collection_cards WHERE card_id IN (${placeholders})`, {
+          replacements: cardIds,
+        });
+      }
+      await Card.destroy({ where: { id: cardIds, userId } });
+    }
 
     const uploadDir = getUploadDir();
     const filePath = path.join(uploadDir, filename);
@@ -197,8 +202,8 @@ router.delete('/:filename', async (req, res) => {
     }
 
     res.json({
-      message: `Deleted file and ${deleteResult.deletedCount} associated card(s)`,
-      deletedCards: deleteResult.deletedCount,
+      message: `Deleted file and ${cardIds.length} associated card(s)`,
+      deletedCards: cardIds.length,
       fileDeleted,
     });
   } catch (error) {

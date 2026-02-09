@@ -7,9 +7,10 @@ const router = express.Router();
 
 const CONTENT_SERVICE_URL = process.env.CONTENT_SERVICE_URL || 'http://localhost:5007';
 const CARD_SERVICE_URL = process.env.CARD_SERVICE_URL || 'http://localhost:5004';
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5008';
 
-// Upload directory: backend must be able to read (default: repo/server/uploads)
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), '..', '..', 'server', 'uploads');
+// Upload directory (default: services/uploads when run from services/upload-service)
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), '..', 'uploads');
 
 function requireUser(req, res, next) {
   if (!req.user || !req.user.id) {
@@ -61,46 +62,124 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 20 * 1024 * 1024 },
 });
 
-// Single file: save, extract via content-service, create cards via card-service
+// Single file: save, extract via content-service (or AI), create cards via card-service
 router.post('/', upload.single('file'), async (req, res) => {
   try {
+    console.log('📤 Upload request received:', {
+      hasFile: !!req.file,
+      useAI: req.body.useAI,
+      userId: req.user?.id,
+    });
+    
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
     const file = req.file;
     const userId = req.user.id;
     const filePath = path.resolve(file.path);
+    const useAI = req.body.useAI === 'true' || req.body.useAI === true;
 
-    // 1. Extract content via content-processing-service
+    console.log(`Processing file: ${file.originalname}, useAI: ${useAI}`);
+
     let processedContent;
-    try {
-      const contentRes = await fetch(`${CONTENT_SERVICE_URL.replace(/\/$/, '')}/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filePath,
-          originalName: file.originalname,
-          filename: file.filename,
-          mimetype: file.mimetype,
-        }),
-      });
-      const contentData = await contentRes.json().catch(() => ({}));
-      if (!contentRes.ok) {
-        throw new Error(contentData.message || contentData.error || `Content service ${contentRes.status}`);
+
+    if (useAI) {
+      // AI flow: extract raw text, send to AI to generate cards
+      try {
+        console.log('🤖 Starting AI flow - extracting text...');
+        const extractRes = await fetch(`${CONTENT_SERVICE_URL.replace(/\/$/, '')}/extract-text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filePath,
+            originalName: file.originalname,
+            filename: file.filename,
+            mimetype: file.mimetype,
+          }),
+        });
+        const extractData = await extractRes.json().catch(() => ({}));
+        if (!extractRes.ok) {
+          console.error('❌ Text extraction failed:', extractData);
+          throw new Error(extractData.message || extractData.error || 'Content extraction failed');
+        }
+        const text = extractData.text || '';
+        console.log(`✅ Extracted ${text.length} characters`);
+        
+        if (!text || text.trim().length < 20) {
+          throw new Error('No text could be extracted from the file for AI processing');
+        }
+
+        console.log('🤖 Sending to AI service for card generation...');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 240000); // 4 min for AI (multi-chunk docs)
+        let aiRes;
+        try {
+          aiRes = await fetch(`${AI_SERVICE_URL.replace(/\/$/, '')}/generate-cards`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: text.trim(),
+              sourceFileName: file.originalname,
+            }),
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+        const aiData = await aiRes.json().catch(() => ({}));
+        if (!aiRes.ok) {
+          console.error('❌ AI generation failed:', aiData);
+          throw new Error(aiData.message || aiData.error || 'AI card generation failed');
+        }
+        console.log(`✅ AI generated ${aiData.items?.length || 0} cards`);
+        processedContent = aiData.items || [];
+      } catch (err) {
+        console.error('❌ AI flow error:', err.message);
+        if (fs.existsSync(file.path)) {
+          try { fs.unlinkSync(file.path); } catch (_) {}
+        }
+        const aiBase = (AI_SERVICE_URL || 'http://localhost:5008').replace(/\/$/, '');
+        const isUnreachable = err.message === 'fetch failed' || err.cause?.code === 'ECONNREFUSED' || err.cause?.code === 'ETIMEDOUT' || err.name === 'AbortError';
+        const message = isUnreachable
+          ? `AI service is not running at ${aiBase}. From the services folder run: npm run start:ai  (or ./scripts/start-ai-service.sh). You can also turn off "Use AI" on the Upload page for rule-based processing.`
+          : err.message;
+        return res.status(502).json({
+          error: useAI ? 'AI processing failed' : 'Content extraction failed',
+          message,
+          service: 'upload-service',
+        });
       }
-      processedContent = contentData.items || [];
-    } catch (err) {
-      if (fs.existsSync(file.path)) {
-        try { fs.unlinkSync(file.path); } catch (_) {}
+    } else {
+      // Rule-based flow: extract and create cards via content-service
+      try {
+        const contentRes = await fetch(`${CONTENT_SERVICE_URL.replace(/\/$/, '')}/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filePath,
+            originalName: file.originalname,
+            filename: file.filename,
+            mimetype: file.mimetype,
+          }),
+        });
+        const contentData = await contentRes.json().catch(() => ({}));
+        if (!contentRes.ok) {
+          throw new Error(contentData.message || contentData.error || `Content service ${contentRes.status}`);
+        }
+        processedContent = contentData.items || [];
+      } catch (err) {
+        if (fs.existsSync(file.path)) {
+          try { fs.unlinkSync(file.path); } catch (_) {}
+        }
+        return res.status(502).json({
+          error: 'Content extraction failed',
+          message: err.message,
+          service: 'upload-service',
+        });
       }
-      return res.status(502).json({
-        error: 'Content extraction failed',
-        message: err.message,
-        service: 'upload-service',
-      });
     }
 
     if (!processedContent || processedContent.length === 0) {
@@ -160,22 +239,51 @@ router.post('/multiple', upload.array('files', 5), async (req, res) => {
       return res.status(400).json({ error: 'No files uploaded' });
     }
     const userId = req.user.id;
+    const useAI = req.body.useAI === 'true' || req.body.useAI === true;
     const results = [];
     for (const file of req.files) {
       try {
         const filePath = path.resolve(file.path);
-        const contentRes = await fetch(`${CONTENT_SERVICE_URL.replace(/\/$/, '')}/process`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            filePath,
-            originalName: file.originalname,
-            filename: file.filename,
-            mimetype: file.mimetype,
-          }),
-        });
-        const contentData = await contentRes.json().catch(() => ({}));
-        const processedContent = contentRes.ok ? (contentData.items || []) : [];
+        let processedContent;
+
+        if (useAI) {
+          const extractRes = await fetch(`${CONTENT_SERVICE_URL.replace(/\/$/, '')}/extract-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filePath,
+              originalName: file.originalname,
+              filename: file.filename,
+              mimetype: file.mimetype,
+            }),
+          });
+          const extractData = await extractRes.json().catch(() => ({}));
+          const text = extractRes.ok ? (extractData.text || '').trim() : '';
+          if (text.length < 20) {
+            processedContent = [];
+          } else {
+            const aiRes = await fetch(`${AI_SERVICE_URL.replace(/\/$/, '')}/generate-cards`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text, sourceFileName: file.originalname }),
+            });
+            const aiData = await aiRes.json().catch(() => ({}));
+            processedContent = aiRes.ok ? (aiData.items || []) : [];
+          }
+        } else {
+          const contentRes = await fetch(`${CONTENT_SERVICE_URL.replace(/\/$/, '')}/process`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filePath,
+              originalName: file.originalname,
+              filename: file.filename,
+              mimetype: file.mimetype,
+            }),
+          });
+          const contentData = await contentRes.json().catch(() => ({}));
+          processedContent = contentRes.ok ? (contentData.items || []) : [];
+        }
 
         if (processedContent.length === 0) {
           if (fs.existsSync(file.path)) {

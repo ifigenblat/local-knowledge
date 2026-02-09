@@ -11,23 +11,35 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Check if MongoDB is running
-echo -n "Checking MongoDB... "
-if nc -z localhost 27017 2>/dev/null; then
+# Check if PostgreSQL is running
+echo -n "Checking PostgreSQL... "
+if nc -z localhost 5432 2>/dev/null; then
     echo -e "${GREEN}✓${NC}"
 else
-    echo -e "${YELLOW}⚠${NC} MongoDB not running on port 27017"
-    echo "   Start MongoDB first: docker run -d -p 27017:27017 mongo:7  (or: docker start mongodb)"
-    echo "   Continuing anyway; services will connect when MongoDB is up."
+    echo -e "${YELLOW}⚠${NC} PostgreSQL not running on port 5432"
+    echo "   Start PostgreSQL: docker run -d -p 5432:5432 -e POSTGRES_USER=localknowledge -e POSTGRES_PASSWORD=localknowledge -e POSTGRES_DB=localknowledge postgres:16-alpine"
+    echo "   Continuing anyway; services will connect when PostgreSQL is up."
 fi
+
+# Set DATABASE_URL for PostgreSQL (services read from env)
+export DATABASE_URL=${DATABASE_URL:-postgresql://localknowledge:localknowledge@localhost:5432/localknowledge}
+# Auth service needs EMAIL_SERVICE_URL for password-reset emails
+export EMAIL_SERVICE_URL=${EMAIL_SERVICE_URL:-http://localhost:5009}
 
 # Start services in background
 echo ""
-echo "Starting services..."
+echo "Starting services (PostgreSQL: $DATABASE_URL)..."
 echo ""
 
-# Create logs directory if it doesn't exist (before starting)
+# Create logs, uploads, and config directories if they don't exist (before starting)
 mkdir -p logs
+mkdir -p uploads
+mkdir -p config
+
+# Resolve project root for UPLOAD_DIR (used by upload, files, preview, uploads-static)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+CONFIG_PATH="${CONFIG_PATH:-$(cd "$SCRIPT_DIR" && pwd)/config}"
 
 # Auth Service
 echo -e "${YELLOW}Starting Auth Service...${NC}"
@@ -42,7 +54,7 @@ sleep 2
 # User Service
 echo -e "${YELLOW}Starting User Service...${NC}"
 cd user-service
-PORT=5002 npm run dev > ../logs/user-service.log 2>&1 &
+CONFIG_PATH="$CONFIG_PATH" PORT=5002 npm run dev > ../logs/user-service.log 2>&1 &
 USER_PID=$!
 echo "  User Service PID: $USER_PID (port 5002)"
 cd ..
@@ -94,7 +106,7 @@ if [ ! -d upload-service/node_modules ]; then
     (cd upload-service && npm install)
 fi
 cd upload-service
-PORT=5006 npm start > ../logs/upload-service.log 2>&1 &
+PORT=5006 UPLOAD_DIR="$PROJECT_ROOT/services/uploads" npm start > ../logs/upload-service.log 2>&1 &
 UPLOAD_PID=$!
 echo "  Upload Service PID: $UPLOAD_PID (port 5006)"
 cd ..
@@ -108,7 +120,7 @@ if [ ! -d content-processing-service/node_modules ]; then
     (cd content-processing-service && npm install)
 fi
 cd content-processing-service
-PORT=5007 npm start > ../logs/content-processing-service.log 2>&1 &
+PORT=5007 UPLOAD_DIR="$PROJECT_ROOT/services/uploads" npm start > ../logs/content-processing-service.log 2>&1 &
 CONTENT_PID=$!
 echo "  Content Processing Service PID: $CONTENT_PID (port 5007)"
 cd ..
@@ -122,7 +134,7 @@ if [ ! -d ai-service/node_modules ]; then
     (cd ai-service && npm install)
 fi
 cd ai-service
-PORT=5008 npm start > ../logs/ai-service.log 2>&1 &
+CONFIG_PATH="$CONFIG_PATH" PORT=5008 npm start > ../logs/ai-service.log 2>&1 &
 AI_PID=$!
 echo "  AI Service PID: $AI_PID (port 5008)"
 cd ..
@@ -149,10 +161,8 @@ if [ ! -d files-service/node_modules ]; then
     echo -e "  ${YELLOW}Installing files-service dependencies...${NC}"
     (cd files-service && npm install)
 fi
-SCRIPT_DIR_FILES="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT_FILES="$(cd "$SCRIPT_DIR_FILES/.." && pwd)"
 cd files-service
-PORT=5012 UPLOAD_DIR="$PROJECT_ROOT_FILES/server/uploads" npm start > ../logs/files-service.log 2>&1 &
+PORT=5012 UPLOAD_DIR="$PROJECT_ROOT/services/uploads" npm start > ../logs/files-service.log 2>&1 &
 FILES_PID=$!
 echo "  Files Service PID: $FILES_PID (port 5012)"
 cd ..
@@ -166,7 +176,7 @@ if [ ! -d preview-service/node_modules ]; then
     (cd preview-service && npm install)
 fi
 cd preview-service
-PORT=5011 UPLOAD_DIR="$PROJECT_ROOT_FILES/server/uploads" npm start > ../logs/preview-service.log 2>&1 &
+PORT=5011 UPLOAD_DIR="$PROJECT_ROOT/services/uploads" npm start > ../logs/preview-service.log 2>&1 &
 PREVIEW_PID=$!
 echo "  Preview Service PID: $PREVIEW_PID (port 5011)"
 cd ..
@@ -183,16 +193,6 @@ cd ..
 
 sleep 2
 
-# Backend (card regenerate - rule-based + AI; card-service proxies to it)
-echo -e "${YELLOW}Starting Backend (regenerate only)...${NC}"
-cd ../server
-PORT=5010 npm run dev > ../services/logs/backend.log 2>&1 &
-BACKEND_PID=$!
-echo "  Backend PID: $BACKEND_PID (port 5010 - regenerate)"
-cd ../services
-
-sleep 2
-
 # Uploads Static Service (serves /uploads files)
 echo -e "${YELLOW}Starting Uploads Static Service...${NC}"
 if [ ! -d uploads-static-service/node_modules ]; then
@@ -200,7 +200,7 @@ if [ ! -d uploads-static-service/node_modules ]; then
     (cd uploads-static-service && npm install)
 fi
 cd uploads-static-service
-PORT=5013 UPLOAD_DIR="$PROJECT_ROOT_FILES/server/uploads" npm start > ../logs/uploads-static-service.log 2>&1 &
+PORT=5013 UPLOAD_DIR="$PROJECT_ROOT/services/uploads" npm start > ../logs/uploads-static-service.log 2>&1 &
 UPLOADS_STATIC_PID=$!
 echo "  Uploads Static Service PID: $UPLOADS_STATIC_PID (port 5013)"
 cd ..
@@ -218,7 +218,6 @@ echo "$EMAIL_PID" > logs/email-service.pid
 echo "$FILES_PID" > logs/files-service.pid
 echo "$PREVIEW_PID" > logs/preview-service.pid
 echo "$GATEWAY_PID" > logs/gateway.pid
-echo "$BACKEND_PID" > logs/backend.pid
 echo "$UPLOADS_STATIC_PID" > logs/uploads-static-service.pid
 
 sleep 3
@@ -240,7 +239,6 @@ echo "  - Email Service:   http://localhost:5009"
 echo "  - Preview Service: http://localhost:5011"
 echo "  - Files Service:   http://localhost:5012"
 echo "  - API Gateway:     http://localhost:8000"
-echo "  - Backend:         http://localhost:5010 (regenerate)"
 echo "  - Uploads Static:  http://localhost:5013 (static /uploads)"
 echo ""
 echo "Logs:"
@@ -256,9 +254,9 @@ echo "  - Email Service:   services/logs/email-service.log"
 echo "  - Files Service:   services/logs/files-service.log"
 echo "  - Preview Service: services/logs/preview-service.log"
 echo "  - API Gateway:     services/logs/gateway.log"
-echo "  - Backend:         services/logs/backend.log"
 echo "  - Uploads Static:  services/logs/uploads-static-service.log"
 echo ""
-echo "To stop all services: ./stop-all.sh"
-echo "To test services: ./test-services.sh"
+echo "To stop all services:  ./stop-all.sh"
+echo "To restart everything: ./restart-all.sh"
+echo "To test services:      ./test-services.sh"
 echo ""

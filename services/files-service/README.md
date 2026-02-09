@@ -13,16 +13,18 @@ Lists and deletes uploaded files for LocalKnowledge. Files are derived from card
 ## Environment
 
 - `PORT` – Default 5012
-- `MONGODB_URI` – MongoDB connection
-- `UPLOAD_DIR` – Path to uploads directory (default: ../../server/uploads)
+- `DATABASE_URL` – PostgreSQL connection (shared with other services)
+- `UPLOAD_DIR` – Path to uploads directory (default: `services/uploads`)
 
 ## Run
 
 ```bash
 cd services/files-service
 npm install
-PORT=5012 UPLOAD_DIR=/path/to/server/uploads npm start
+PORT=5012 npm start
 ```
+
+Or use `./start-all.sh` from `services/`.
 
 ## Test
 

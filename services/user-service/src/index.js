@@ -1,11 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-const mongoose = require('mongoose');
 require('dotenv').config();
-
 const path = require('path');
-// Register Role model for populate() to work (uses this service's mongoose)
-require('./models/Role');
 const userRoutes = require('./routes/userRoutes');
 
 const app = express();
@@ -21,6 +17,7 @@ app.get('/health', (req, res) => {
   res.json({ 
     service: 'user-service',
     status: 'healthy',
+    database: 'postgresql',
     timestamp: new Date().toISOString()
   });
 });
@@ -40,19 +37,10 @@ app.use((err, req, res, next) => {
 // Start server
 const startServer = async () => {
   try {
-    const mongoURI =
-      process.env.MONGODB_URI || 'mongodb://localhost:27017/local-knowledge';
-
-    // IMPORTANT: Use this service's local mongoose instance
-    await mongoose.connect(mongoURI);
-    console.log(
-      '✅ User Service MongoDB connected (readyState:',
-      mongoose.connection.readyState,
-      ')'
-    );
-
+    const { initPostgres } = require(path.join(__dirname, '../../shared/postgres'));
+    await initPostgres();
     app.listen(PORT, () => {
-      console.log(`🚀 User Service running on port ${PORT}`);
+      console.log(`🚀 User Service running on port ${PORT} (PostgreSQL)`);
     });
   } catch (error) {
     console.error('Failed to start User Service:', error);

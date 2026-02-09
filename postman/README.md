@@ -13,14 +13,14 @@ Use these files to test the LocalKnowledge API directly in Postman (via the API 
 |-------------------------|----------------|-------|
 | **Gateway** (8000) | Gateway | Root, Health, Services Health |
 | **Auth** (5001) | Auth | Register, Login, Validate, Forgot/Reset password |
-| **Users** (5002) | Users | List, Get, Create, Update, Delete |
+| **Users** (5002) | Users | List, Get, Create, Update, Delete, Get Settings, Update Settings (superadmin) |
 | **Roles** (5003) | Roles | List, Get, Get by name, Get users, CRUD, Assign |
 | **Cards** (5004) | Cards | List, Get, by category/type, CRUD, Review, Rate, Regenerate |
-| **Backend** (5010) | Collections | List, Get, Create, Update, Delete, Add/Remove card |
-| **Backend** (5010) | Upload | Upload single, Upload multiple, Upload progress |
-| **Backend** (5010) | Preview | Preview file (e.g. DOCX, PDF) |
-| **Backend** (5010) | Uploads (static) | Get uploaded file by path |
-| **Backend** (5010) | AI | AI status |
+| **Gateway** (8000) | Collections | List, Get, Create, Update, Delete, Add/Remove card |
+| **Gateway** (8000) | Upload | Upload single, Upload multiple, Upload progress |
+| **Gateway** (8000) | Preview | Preview file (e.g. DOCX, PDF) |
+| **Gateway** (8000) | Uploads (static) | Get uploaded file by path |
+| **Gateway** (8000) | AI | AI status |
 
 ## Import in Postman
 
@@ -58,12 +58,13 @@ Use these files to test the LocalKnowledge API directly in Postman (via the API 
 
 ## Prerequisites
 
-- **Use the API Gateway (port 8000)** for all requests. Set `base_url` to `http://localhost:8000`. Do **not** call the backend (5010) or card service (5004) directly for `/api/cards` – the gateway validates the token and forwards to the right service.
-- If you see only `{ "error": "Server error" }` with no `message` or `service` field, you are likely calling the wrong port (e.g. 5010). Switch to the **LocalKnowledge - Local** environment and ensure `base_url` is `http://localhost:8000`.
-- API Gateway, Auth, User, Role, Card services (and optionally backend on 5010 for collections, upload, AI) must be running.
+- **Use the API Gateway (port 8000)** for all requests. Set `base_url` to `http://localhost:8000`. Do not call individual services (5001, 5004, etc.) directly – the gateway validates the token and forwards to the right service.
+- If you see only `{ "error": "Server error" }` with no `message` or `service` field, ensure **LocalKnowledge - Local** is selected and `base_url` is `http://localhost:8000`.
+- All microservices must be running: from `services/` run `./start-all.sh`.
 
 ## Notes
 
 - **Auth** (Register, Login, Forgot Password, Reset Password) do not require a token.
 - All other requests use **Bearer {{token}}** from the environment.
-- For **Upload**, use the Body → form-data tab and add a key `file` of type File, then choose a file.
+- **Users → Update Settings** requires a Super Administrator account; it configures AI provider (Ollama vs cloud) and cloud credentials (provider, URL, model, API key).
+- For **Upload**, use the Body → form-data tab and add a key `file` of type File, then choose a file. Optionally add `useAI` = `true` and `category`, `tags` as form fields.

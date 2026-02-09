@@ -1,11 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const mongoose = require('mongoose');
+const path = require('path');
 const fileRoutes = require('./routes/fileRoutes');
-
-require('./models/Card');
-require('./models/Collection');
 
 const app = express();
 const PORT = process.env.PORT || 5012;
@@ -22,16 +19,16 @@ app.use(cors());
 app.use(express.json({ limit: '100kb' }));
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', service: 'files-service' });
+  res.json({ status: 'healthy', service: 'files-service', database: 'postgresql' });
 });
 
 app.use('/', fileRoutes);
 
 const startServer = async () => {
   try {
-    const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/local-knowledge';
-    await mongoose.connect(mongoURI);
-    console.log('Files Service MongoDB connected');
+    const { initPostgres } = require(path.join(__dirname, '../../shared/postgres'));
+    await initPostgres();
+    console.log('Files Service PostgreSQL connected');
     app.listen(PORT, () => {
       console.log(`Files Service listening on port ${PORT}`);
     });

@@ -28,7 +28,7 @@ const Settings = () => {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile' or 'password'
+  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'password'
   
   // Check if password change is required
   useEffect(() => {
@@ -137,7 +137,6 @@ const Settings = () => {
   }
 
   const handleClose = () => {
-    // Navigate back to previous page, or dashboard if no history
     if (window.history.length > 1) {
       navigate(-1);
     } else {

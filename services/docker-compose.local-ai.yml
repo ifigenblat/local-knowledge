@@ -1,0 +1,34 @@
+# Local AI backends for LocalKnowledge (optional).
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.local-ai.yml up -d
+# Or standalone: docker-compose -f docker-compose.local-ai.yml up -d
+#
+# Ports (no conflict with each other):
+#   LocalAI:   8080
+#   llama.cpp: 8081
+# In the app: Administration → AI Settings → Cloud provider → LocalAI or llama.cpp
+
+version: '3.8'
+
+services:
+  localai:
+    image: quay.io/go-skynet/local-ai:latest
+    container_name: localknowledge-localai
+    ports:
+      - "8080:8080"
+    # Optional: mount a directory with models
+    # volumes:
+    #   - ./models/localai:/models
+    # Environment: see https://localai.io/docs/advanced/configuration/
+    restart: unless-stopped
+
+  # llama.cpp server: requires a GGUF model in ./models/llamacpp/
+  # Create dir and add a .gguf file, then set MODEL_NAME below and uncomment.
+  # llamacpp:
+  #   image: ghcr.io/ggml-org/llama.cpp:server
+  #   container_name: localknowledge-llamacpp
+  #   ports:
+  #     - "8081:8080"
+  #   volumes:
+  #     - ./models/llamacpp:/models
+  #   command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/YOUR_MODEL.gguf"]
+  #   restart: unless-stopped

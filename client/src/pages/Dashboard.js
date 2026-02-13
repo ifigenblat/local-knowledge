@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchCards, deleteCardAsync, updateCardAsync, regenerateCardAsync } from '../store/slices/cardSlice';
 import { fetchCollections, fetchCollection } from '../store/slices/collectionSlice';
 import { toast } from 'react-hot-toast';
-import { BookOpen, Target, Quote, CheckSquare, Network, Star, Folder, FileText, X } from 'lucide-react';
+import { BookOpen, Target, Quote, CheckSquare, Network, Folder, FileText, X } from 'lucide-react';
 import Card from '../components/Card';
 import CardDetailModal from '../components/CardDetailModal';
 
@@ -36,28 +36,6 @@ const Dashboard = () => {
 
   const recentCards = cards.slice(0, 6);
   const recentCollections = collections.slice(0, 3);
-
-  const getTypeIcon = (type) => {
-    const icons = {
-      concept: BookOpen,
-      action: Target,
-      quote: Quote,
-      checklist: CheckSquare,
-      mindmap: Network
-    };
-    return icons[type] || BookOpen;
-  };
-
-  const getTypeColor = (type) => {
-    const colors = {
-      concept: 'bg-blue-500',
-      action: 'bg-green-500',
-      quote: 'bg-purple-500',
-      checklist: 'bg-orange-500',
-      mindmap: 'bg-indigo-500'
-    };
-    return colors[type] || 'bg-gray-500';
-  };
 
   const getTypeColorForHeader = (type) => {
     const colors = {

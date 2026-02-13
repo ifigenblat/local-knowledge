@@ -608,7 +608,7 @@ The system supports granular permissions across six main categories:
 
 ### Automated Testing
 - System test script (`test-system.sh`)
-- Health check script (`check-server.sh`)
+- Health check script (`check-server.sh` — checks gateway + frontend)
 - API endpoint testing
 - Integration testing for workflows
 
@@ -676,7 +676,7 @@ The system supports granular permissions across six main categories:
 ### Getting Help
 - Check documentation files
 - Review error messages and logs
-- Run `check-server.sh` for diagnostics
+- Run `./check-server.sh` for diagnostics (gateway + frontend)
 - Run `test-system.sh` for system verification
 
 ---

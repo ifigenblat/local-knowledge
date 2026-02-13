@@ -134,7 +134,7 @@ npm run install-all
 
 ## 🎯 **Typical Workflow**
 
-1. **Start the app**: `npm run dev`
+1. **Start the app**: `npm run backend` (then in another terminal: `npm run client`)
 2. **Open browser**: http://localhost:3000
 3. **Login/Register**: Use test account or create new one
 4. **Upload files**: Go to Upload page, drag & drop files

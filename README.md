@@ -136,12 +136,10 @@ docker run -d -p 5432:5432 -e POSTGRES_USER=localknowledge -e POSTGRES_PASSWORD=
 
 4. **Initialize roles and create superadmin user** (if using setup.sh, this is done automatically)
    ```bash
-   # Initialize default roles (superadmin, admin, and user)
-   cd server
-   node scripts/init-roles.js
-   
-   # Create default superadmin user
-   node scripts/create-admin-user.js
+   # From project root: sync schema and seed (roles + admin user)
+   cd services
+   npm run sync-postgres
+   npm run seed-postgres
    cd ..
    ```
    
@@ -153,25 +151,14 @@ docker run -d -p 5432:5432 -e POSTGRES_USER=localknowledge -e POSTGRES_PASSWORD=
 
 5. **Start the application**
    ```bash
-   # From the root directory
-   npm run dev
+   # Terminal 1 - Backend (gateway + microservices)
+   npm run backend
+
+   # Terminal 2 - Frontend
+   npm run client
    ```
    
-   This will start both the backend server (port 5001) and frontend (port 3000).
-
-### Alternative Setup
-
-You can also run the servers separately:
-
-```bash
-# Terminal 1 - Backend
-cd server
-npm run dev
-
-# Terminal 2 - Frontend
-cd client
-npm start
-```
+   Backend runs on port 8000 (gateway); frontend on port 3000.
 
 ### Microservices + Frontend
 
@@ -222,14 +209,18 @@ Starts PostgreSQL + all microservices. See `services/docker-compose.yml` for con
 
 ```
 local-knowledge/
-├── server/                 # (Deprecated) Legacy monolith; use services/ instead
-│   ├── routes/            # API routes
-│   ├── middleware/        # Express middleware
-│   ├── utils/             # Utility functions
-│   │   ├── contentProcessor.js  # Rule-based card generation
-│   │   ├── aiProcessor.js       # AI-powered card generation (Ollama)
-│   │   └── email.js             # Email utilities
-│   └── uploads/           # Uploaded files storage
+├── services/              # Microservices + API Gateway (port 8000)
+│   ├── gateway/           # API Gateway, auth proxy
+│   ├── auth-service/     # Login, register, JWT
+│   ├── user-service/     # User CRUD
+│   ├── role-service/     # Roles & permissions
+│   ├── card-service/     # Cards CRUD, regenerate
+│   ├── collection-service/
+│   ├── upload-service/   # File upload
+│   ├── content-processing-service/
+│   ├── ai-service/       # AI card generation
+│   ├── shared/postgres/  # Models, repositories
+│   └── start-all.sh      # Start all services
 ├── client/                # Frontend React application
 │   ├── src/
 │   │   ├── components/    # Reusable components

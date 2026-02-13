@@ -116,7 +116,7 @@ const createServiceProxy = (serviceName, target) => {
         const isBackend = serviceName === 'cards' || serviceName === 'collections' || serviceName === 'upload' || serviceName === 'ai';
         res.status(502).json({ 
           error: `Service ${serviceName} unavailable`,
-          message: isBackend ? 'Backend (cards/collections) may be down. Start it with: cd server && PORT=5010 npm run dev' : `Service ${serviceName} unavailable`,
+          message: isBackend ? 'Backend may be down. Start with: npm run backend (or cd services && ./start-all.sh)' : `Service ${serviceName} unavailable`,
           service: serviceName
         });
       }

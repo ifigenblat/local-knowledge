@@ -1,10 +1,10 @@
 #!/bin/bash
-# Start the backend (cards, collections, upload) on port 5010.
+# Start the backend (gateway + microservices) on port 8000.
 # Run from anywhere: ./start-backend.sh   or   bash start-backend.sh
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-cd "$ROOT/server" || exit 1
-echo "Starting backend (cards/collections) on http://localhost:5010 ..."
+cd "$ROOT/services" || exit 1
+echo "Starting backend (gateway + services) on http://localhost:8000 ..."
 echo "Leave this terminal open. Press Ctrl+C to stop."
 echo ""
-PORT=5010 npm run dev
+./start-all.sh

@@ -1,5 +1,7 @@
 # 🚀 LocalKnowledge - Reproducible Setup Guide
 
+> **Note:** This doc is partially legacy. For current setup use **README.md** and **QUICK_REFERENCE.md**. The app runs on **microservices + PostgreSQL** (no MongoDB, no `server/`).
+
 ## 📋 **Complete Configuration Documentation**
 
 This guide ensures you can reproduce the working LocalKnowledge app consistently.
@@ -7,7 +9,8 @@ This guide ensures you can reproduce the working LocalKnowledge app consistently
 ## 🛠 **System Requirements**
 
 - **Node.js**: v16 or higher
-- **Docker**: For MongoDB container
+- **Docker**: Optional, for PostgreSQL container
+- **PostgreSQL**: Required (local or Docker)
 - **npm**: Package manager
 - **Operating System**: macOS, Linux, or Windows
 - **Ollama** (optional): For AI-powered card regeneration (local/offline)
@@ -23,14 +26,15 @@ LocalKnowledge/
 │   │   ├── store/          # Redux store
 │   │   └── ...
 │   └── package.json
-├── server/                 # Node.js backend
-│   ├── models/             # MongoDB models
-│   ├── routes/             # API routes
-│   ├── utils/              # Utility functions
-│   ├── uploads/            # File storage
-│   └── package.json
+├── services/               # Microservices + API Gateway
+│   ├── gateway/            # API Gateway (port 8000)
+│   ├── auth-service/      # Auth, JWT
+│   ├── card-service/      # Cards
+│   ├── shared/postgres/   # Models, DB
+│   ├── start-all.sh       # Start all services
+│   └── .env               # DATABASE_URL, JWT_SECRET, etc.
 ├── package.json            # Root package.json
-└── .env files             # Environment configurations
+└── .env files              # services/.env, etc.
 ```
 
 ## 🔧 **Step-by-Step Setup**

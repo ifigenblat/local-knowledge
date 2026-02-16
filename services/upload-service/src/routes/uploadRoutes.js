@@ -9,6 +9,81 @@ const CONTENT_SERVICE_URL = process.env.CONTENT_SERVICE_URL || 'http://localhost
 const CARD_SERVICE_URL = process.env.CARD_SERVICE_URL || 'http://localhost:5004';
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5008';
 
+const CONFIG_PATH = process.env.CONFIG_PATH || path.resolve(__dirname, '../../../config');
+const SETTINGS_FILE = path.join(CONFIG_PATH, 'settings.json');
+const PROCESSING_CACHE_MS = 60000;
+let processingCache = null;
+let processingCacheTime = 0;
+
+function getProcessingSettings() {
+  const now = Date.now();
+  if (processingCache !== null && now - processingCacheTime < PROCESSING_CACHE_MS) {
+    return processingCache;
+  }
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+      const maxExtracted = typeof raw.maxExtractedTextChars === 'number' ? raw.maxExtractedTextChars : parseInt(process.env.MAX_EXTRACTED_TEXT_CHARS, 10) || 500000;
+      const chunkChars = typeof raw.aiChunkChars === 'number' ? raw.aiChunkChars : parseInt(process.env.AI_CHUNK_CHARS, 10) || 6000;
+      const delayMs = typeof raw.aiChunkDelayMs === 'number' ? raw.aiChunkDelayMs : parseInt(process.env.AI_CHUNK_DELAY_MS, 10) || 300;
+      processingCache = { maxExtractedTextChars: maxExtracted, aiChunkChars: chunkChars, aiChunkDelayMs: delayMs };
+      processingCacheTime = now;
+      return processingCache;
+    }
+  } catch (e) {
+    // ignore
+  }
+  processingCache = {
+    maxExtractedTextChars: parseInt(process.env.MAX_EXTRACTED_TEXT_CHARS, 10) || 500000,
+    aiChunkChars: parseInt(process.env.AI_CHUNK_CHARS, 10) || 6000,
+    aiChunkDelayMs: parseInt(process.env.AI_CHUNK_DELAY_MS, 10) || 300,
+  };
+  processingCacheTime = now;
+  return processingCache;
+}
+
+/**
+ * Split text into chunks by paragraph boundaries. Each chunk <= maxChunkChars.
+ * Ensures we never send a full large document to the AI service in one request.
+ */
+function chunkTextForAI(text, maxChunkChars = 6000) {
+  const trimmed = (text || '').trim();
+  if (!trimmed || trimmed.length <= maxChunkChars) return trimmed.length > 20 ? [trimmed] : [];
+  const paragraphs = trimmed.split(/\n\s*\n/).map(p => p.trim()).filter(p => p.length > 0);
+  if (paragraphs.length === 0) {
+    // No paragraph breaks: split by size so we still process the entire document
+    const chunks = [];
+    for (let start = 0; start < trimmed.length; start += maxChunkChars) {
+      const chunk = trimmed.substring(start, start + maxChunkChars);
+      if (chunk.length > 20) chunks.push(chunk);
+    }
+    return chunks;
+  }
+  const chunks = [];
+  let current = [];
+  let currentLen = 0;
+  for (const p of paragraphs) {
+    const pLen = p.length + 2;
+    if (currentLen + pLen > maxChunkChars && current.length > 0) {
+      chunks.push(current.join('\n\n'));
+      current = [];
+      currentLen = 0;
+    }
+    if (p.length > maxChunkChars) {
+      for (let i = 0; i < p.length; i += maxChunkChars) {
+        chunks.push(p.substring(i, i + maxChunkChars));
+      }
+      current = [];
+      currentLen = 0;
+      continue;
+    }
+    current.push(p);
+    currentLen += pLen;
+  }
+  if (current.length > 0) chunks.push(current.join('\n\n'));
+  return chunks.filter(c => c.length > 20);
+}
+
 // Upload directory (default: services/uploads when run from services/upload-service)
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), '..', 'uploads');
 
@@ -105,37 +180,60 @@ router.post('/', upload.single('file'), async (req, res) => {
           console.error('❌ Text extraction failed:', extractData);
           throw new Error(extractData.message || extractData.error || 'Content extraction failed');
         }
-        const text = extractData.text || '';
+        let text = (extractData.text || '').trim();
         console.log(`✅ Extracted ${text.length} characters`);
         
-        if (!text || text.trim().length < 20) {
+        if (!text || text.length < 20) {
           throw new Error('No text could be extracted from the file for AI processing');
         }
+        const limits = getProcessingSettings();
+        if (text.length > limits.maxExtractedTextChars) {
+          throw new Error(
+            `File text is too large for AI processing (${text.length} chars, max ${limits.maxExtractedTextChars}). ` +
+            'Use rule-based extraction (turn off "Use AI") or split the file.'
+          );
+        }
 
-        console.log('🤖 Sending to AI service for card generation...');
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 240000); // 4 min for AI (multi-chunk docs)
-        let aiRes;
-        try {
-          aiRes = await fetch(`${AI_SERVICE_URL.replace(/\/$/, '')}/generate-cards`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text: text.trim(),
-              sourceFileName: file.originalname,
-            }),
-            signal: controller.signal,
-          });
-        } finally {
-          clearTimeout(timeoutId);
+        const chunks = chunkTextForAI(text, limits.aiChunkChars);
+        const chunkCharsSum = chunks.reduce((sum, c) => sum + c.length, 0);
+        const fullCoverage = chunkCharsSum >= text.length - 50; // allow tiny trim variance
+        console.log(
+          `🤖 Processing ${chunks.length} chunk(s) via AI (max ${limits.aiChunkChars} chars/request). ` +
+          `Extracted ${text.length} chars → chunks sum ${chunkCharsSum} chars. ${fullCoverage ? '✓ Full document covered.' : '⚠ Chunk sum < extracted (check chunking).'}`
+        );
+        const allItems = [];
+        const aiBase = AI_SERVICE_URL.replace(/\/$/, '');
+        for (let i = 0; i < chunks.length; i++) {
+          const controller = new AbortController();
+          const timeoutMs = 360000; // 6 min per chunk (ai-service default is 5 min for slow/local models)
+          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+          try {
+            const aiRes = await fetch(`${aiBase}/generate-cards`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: chunks[i],
+                sourceFileName: file.originalname,
+              }),
+              signal: controller.signal,
+            });
+            const aiData = await aiRes.json().catch(() => ({}));
+            if (!aiRes.ok) {
+              console.error(`❌ AI chunk ${i + 1}/${chunks.length} failed:`, aiData);
+              throw new Error(aiData.message || aiData.error || 'AI card generation failed');
+            }
+            const items = aiData.items || [];
+            allItems.push(...items);
+            console.log(`✅ Chunk ${i + 1}/${chunks.length}: ${items.length} cards (total ${allItems.length})`);
+          } finally {
+            clearTimeout(timeoutId);
+          }
+          if (i < chunks.length - 1) {
+            await new Promise(r => setTimeout(r, limits.aiChunkDelayMs));
+          }
         }
-        const aiData = await aiRes.json().catch(() => ({}));
-        if (!aiRes.ok) {
-          console.error('❌ AI generation failed:', aiData);
-          throw new Error(aiData.message || aiData.error || 'AI card generation failed');
-        }
-        console.log(`✅ AI generated ${aiData.items?.length || 0} cards`);
-        processedContent = aiData.items || [];
+        processedContent = allItems;
+        console.log(`✅ AI generated ${processedContent.length} cards total`);
       } catch (err) {
         console.error('❌ AI flow error:', err.message);
         if (fs.existsSync(file.path)) {
@@ -258,17 +356,34 @@ router.post('/multiple', upload.array('files', 5), async (req, res) => {
             }),
           });
           const extractData = await extractRes.json().catch(() => ({}));
-          const text = extractRes.ok ? (extractData.text || '').trim() : '';
+          let text = extractRes.ok ? (extractData.text || '').trim() : '';
           if (text.length < 20) {
             processedContent = [];
           } else {
-            const aiRes = await fetch(`${AI_SERVICE_URL.replace(/\/$/, '')}/generate-cards`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ text, sourceFileName: file.originalname }),
-            });
-            const aiData = await aiRes.json().catch(() => ({}));
-            processedContent = aiRes.ok ? (aiData.items || []) : [];
+            const limitsMulti = getProcessingSettings();
+            if (text.length > limitsMulti.maxExtractedTextChars) {
+              processedContent = [];
+              results.push({
+                file: file.originalname,
+                success: false,
+                error: `File too large for AI (${text.length} chars, max ${limitsMulti.maxExtractedTextChars}). Use rule-based or split.`,
+              });
+              continue;
+            }
+            const chunks = chunkTextForAI(text, limitsMulti.aiChunkChars);
+            const allItems = [];
+            const aiBase = AI_SERVICE_URL.replace(/\/$/, '');
+            for (let i = 0; i < chunks.length; i++) {
+              const aiRes = await fetch(`${aiBase}/generate-cards`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: chunks[i], sourceFileName: file.originalname }),
+              });
+              const aiData = await aiRes.json().catch(() => ({}));
+              if (aiRes.ok && Array.isArray(aiData.items)) allItems.push(...aiData.items);
+              if (i < chunks.length - 1) await new Promise(r => setTimeout(r, limitsMulti.aiChunkDelayMs));
+            }
+            processedContent = allItems;
           }
         } else {
           const contentRes = await fetch(`${CONTENT_SERVICE_URL.replace(/\/$/, '')}/process`, {

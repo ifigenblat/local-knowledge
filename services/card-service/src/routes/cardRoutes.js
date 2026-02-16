@@ -293,6 +293,7 @@ router.post('/from-processed-file', async (req, res) => {
         category: category || item.category || 'General',
         tags: tags ? (typeof tags === 'string' ? tags.split(',').map(t => t.trim()) : tags) : (item.tags || []),
         provenance,
+        generatedBy: item.generatedBy === 'ai' ? 'ai' : 'rule-based',
       };
       try {
         const result = await CardService.createOrUpdateFromProcessedItem(cardData, req.user.id, file, fileHash, fileId);

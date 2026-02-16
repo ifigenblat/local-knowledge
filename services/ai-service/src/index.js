@@ -17,8 +17,8 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 app.use(cors());
-// Body limit allows longer docs; cloud processes by paragraph (low memory per chunk)
-app.use(express.json({ limit: '2mb' }));
+// Body limit: clients send one chunk per request (e.g. 6k chars); 500k allows margin
+app.use(express.json({ limit: '1mb' }));
 app.use((err, req, res, next) => {
   if (err && (err.type === 'entity.too.large' || err.status === 413)) {
     if (!res.headersSent) res.status(413).json({ error: 'Payload too large', message: 'Request body must be under 2MB' });

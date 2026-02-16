@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { Link } from 'react-router-dom';
 import { 
   BookOpen, 
   Target, 
@@ -833,6 +834,19 @@ const CardDetailModal = ({
                                 <AlertCircle className="h-8 w-8 text-gray-400 mx-auto mb-2" />
                                 <p className="text-sm text-gray-500 dark:text-gray-400">{dataToUse.aiError || 'AI regeneration failed'}</p>
                                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Only rule-based version is available</p>
+                                {(dataToUse.aiError && /model runner|unexpectedly stopped|resource limitation|ollama/i.test(dataToUse.aiError)) && (
+                                  <div className="text-xs text-amber-600 dark:text-amber-400 mt-2 max-w-xs mx-auto space-y-1">
+                                    <p>Local model may have run out of memory. Try a smaller model (e.g. llama3.2:1b), close other apps, or switch to Cloud AI.</p>
+                                    <Link
+                                      to="/ai-settings"
+                                      className="inline-flex items-center gap-1 mt-2 text-amber-700 dark:text-amber-300 hover:underline font-medium"
+                                      onClick={() => onClose && onClose()}
+                                    >
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                      Open AI Settings
+                                    </Link>
+                                  </div>
+                                )}
                               </div>
                             )}
                             {dataToUse.ai ? (

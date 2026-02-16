@@ -27,7 +27,7 @@ Faster and more stable than local Ollama. Works with OpenAI, **Groq** (free tier
 No API key; can hit resource limits or “model runner stopped” on smaller machines.
 
 - `OLLAMA_API_URL` – Default http://localhost:11434
-- `OLLAMA_MODEL` – Default phi (or llama2)
+- `OLLAMA_MODEL` – Default llama2; use llama3.2 for better stability
 - `OLLAMA_ENABLED` – Set to `true` to use Ollama when `OPENAI_API_KEY` is not set
 
 ## Quick setup: Groq (free, fast)

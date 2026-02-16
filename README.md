@@ -120,17 +120,16 @@ docker run -d -p 5432:5432 -e POSTGRES_USER=localknowledge -e POSTGRES_PASSWORD=
    ollama serve
    
    # Pull a model
-   # llama2 (recommended, stable, slower): ~3.8GB
-   ollama pull llama2
+   # llama3.2 (recommended, stable): ~2GB
+   ollama pull llama3.2
    
-   # phi (faster, smaller, but less stable - may crash): ~1.6GB
-   # Note: phi was tested but found to be unstable, crashing on some content
-   # ollama pull phi
+   # Or llama2 (stable, slower): ~3.8GB
+   ollama pull llama2
    ```
    
    **Model Recommendations**:
-   - **llama2** (recommended): More stable, produces better results, slower (~10-30s per regeneration)
-   - **phi**: Faster (~3-8s per regeneration), but **not recommended** - may crash on complex content or resource constraints
+   - **llama3.2** (recommended): Stable, good balance of speed and quality
+   - **llama2**: Also stable, slower (~10-30s per regeneration)
    
    See [AI_VERIFICATION.md](AI_VERIFICATION.md) for detailed AI setup instructions.
 

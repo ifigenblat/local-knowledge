@@ -17,13 +17,27 @@ const CLOUD_PROVIDER_PRESETS = {
   custom: { url: '', model: '' },
 };
 
-/** Cloud providers that require an API key (stars shown when key is set). Local providers do not. */
+/** Cloud-only services (remote API); shown in "Cloud" dropdown only. */
+const CLOUD_SERVICES = [
+  { value: 'openai', label: 'OpenAI (e.g. gpt-4o-mini)' },
+  { value: 'groq', label: 'Groq (free tier, fast)' },
+  { value: 'together', label: 'Together' },
+  { value: 'custom', label: 'Custom (enter URL and model)' },
+];
+/** Local-only services (run on this machine); shown in "Local" dropdown only. */
+const LOCAL_SERVICES = [
+  { value: 'ollama', label: 'Ollama (recommended)' },
+  { value: 'lmstudio', label: 'LM Studio (GPU-friendly)' },
+  { value: 'localai', label: 'LocalAI (Docker)' },
+  { value: 'llamacpp', label: 'llama.cpp (local server)' },
+];
+/** Providers that require an API key (cloud only). */
 const PROVIDERS_WITH_API_KEY = ['openai', 'groq', 'together', 'custom'];
 
 const PROVIDER_INSTRUCTIONS = {
   ollama: {
     freeOrPaid: 'Free (local)',
-    text: 'Install Ollama from ollama.com, run "ollama pull phi" (or another model), then "ollama serve". Set OLLAMA_ENABLED=true in ai-service. No API key.',
+    text: 'Install Ollama from ollama.com, run "ollama pull llama3.2" (or another model), then "ollama serve". Set OLLAMA_ENABLED=true in ai-service. No API key.',
   },
   openai: {
     freeOrPaid: 'Paid (pay-as-you-go)',
@@ -55,6 +69,22 @@ const PROVIDER_INSTRUCTIONS = {
   },
 };
 
+/** Processing limits: defaults and max values (must match backend). */
+const PROCESSING_DEFAULTS = {
+  maxExtractedTextChars: 500000,
+  aiChunkChars: 6000,
+  aiChunkDelayMs: 300,
+  aiMaxTextLength: 100000,
+  ollamaChunkChars: 1500,
+};
+const PROCESSING_MAX = {
+  maxExtractedTextChars: 2000000,
+  aiChunkChars: 20000,
+  aiChunkDelayMs: 5000,
+  aiMaxTextLength: 200000,
+  ollamaChunkChars: 4000,
+};
+
 /** Install & run steps for each local AI option (super admin). runAction: API action for "Run" button. */
 const LOCAL_AI_INSTALL = {
   ollama: {
@@ -66,8 +96,8 @@ const LOCAL_AI_INSTALL = {
       { label: 'Or install manually: macOS', command: 'brew install ollama' },
       { label: 'Or: Linux', command: 'curl -fsSL https://ollama.com/install.sh | sh' },
       { label: 'Start the server', command: 'ollama serve' },
-      { label: 'Pull a model (one-time, in another terminal)', command: 'ollama pull phi' },
-      { label: 'In this app', text: 'Select Provider: Ollama (local) above and click Save. Set OLLAMA_ENABLED=true when starting the AI service (e.g. in start-all.sh or .env).' },
+      { label: 'Pull a model (one-time, in another terminal)', command: 'ollama pull llama3.2' },
+      { label: 'In this app', text: 'Select Where does the AI run: Locally, Local service: Ollama. Click Save. Set OLLAMA_ENABLED=true and OLLAMA_MODEL=llama3.2 (or your model) when starting the AI service (e.g. in start-all.sh or .env).' },
     ],
   },
   localai: {
@@ -77,7 +107,7 @@ const LOCAL_AI_INSTALL = {
     steps: [
       { label: 'Start LocalAI (from project root: services/)', command: 'cd services && chmod +x scripts/local-ai/start-localai.sh && ./scripts/local-ai/start-localai.sh' },
       { label: 'Or with Docker directly', command: 'docker run -d -p 8080:8080 --name localknowledge-localai quay.io/go-skynet/local-ai:latest' },
-      { label: 'In this app', text: 'Select Provider: Cloud, Cloud provider: LocalAI (local, Docker). Base URL: http://localhost:8080/v1. Save. You may need to load a model in LocalAI (see localai.io).' },
+      { label: 'In this app', text: 'Select Where does the AI run: Locally, Local service: LocalAI. Base URL: http://localhost:8080/v1. Save. You may need to load a model in LocalAI (see localai.io).' },
     ],
   },
   llamacpp: {
@@ -89,7 +119,7 @@ const LOCAL_AI_INSTALL = {
       { label: '1. Download a GGUF model (run once)', text: 'Click "Download sample model" below, or run the command in a terminal from project services/.' },
       { label: 'Or run in terminal (from services/)', command: 'mkdir -p .models/llamacpp && curl -fL -o .models/llamacpp/Llama-3.2-1B-Instruct-Q4_K_M.gguf "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf"' },
       { label: '2. Start llama.cpp server', text: 'Set port below if needed (e.g. 8081), then click "Start server".' },
-      { label: '3. In this app', text: 'Select Provider: Cloud, Cloud provider: llama.cpp. Base URL: http://localhost:8081/v1 (or your port). Save.' },
+      { label: '3. In this app', text: 'Select Where does the AI run: Locally, Local service: llama.cpp. Base URL: http://localhost:8081/v1 (or your port). Save.' },
     ],
   },
   lmstudio: {
@@ -99,7 +129,7 @@ const LOCAL_AI_INSTALL = {
     steps: [
       { label: 'Install', text: 'Download LM Studio from lmstudio.ai and install.' },
       { label: 'Run', text: 'Open LM Studio, download a model, then start the local server (default port 1234).' },
-      { label: 'In this app', text: 'Select Provider: Cloud, Cloud provider: LM Studio (local, GPU-friendly). Base URL: http://localhost:1234/v1. Save.' },
+      { label: 'In this app', text: 'Select Where does the AI run: Locally, Local service: LM Studio. Base URL: http://localhost:1234/v1. Save.' },
     ],
   },
 };
@@ -115,15 +145,26 @@ const AISettings = () => {
     cloudModel: '',
     cloudApiKey: '',
   });
+  /** 'local' = run on this machine, 'cloud' = remote API. Drives which services show in second dropdown. */
+  const [runLocation, setRunLocation] = useState('local');
+  /** Selected service: for local = ollama|lmstudio|localai|llamacpp, for cloud = openai|groq|together|custom. */
+  const [service, setService] = useState('ollama');
   const [hasApiKey, setHasApiKey] = useState(false);
   const [cloudApiKeyMasked, setCloudApiKeyMasked] = useState('');
-  /** Provider the saved API key was set for; stars only when selected provider matches this */
   const [savedCloudProvider, setSavedCloudProvider] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [installPanelOpen, setInstallPanelOpen] = useState(null);
   const [customPorts, setCustomPorts] = useState({ localai: '8080', llamacpp: '8081' });
   const [runState, setRunState] = useState({ action: null, loading: false, result: null });
+  const [processingLimits, setProcessingLimits] = useState({
+    maxExtractedTextChars: PROCESSING_DEFAULTS.maxExtractedTextChars,
+    aiChunkChars: PROCESSING_DEFAULTS.aiChunkChars,
+    aiChunkDelayMs: PROCESSING_DEFAULTS.aiChunkDelayMs,
+    aiMaxTextLength: PROCESSING_DEFAULTS.aiMaxTextLength,
+    ollamaChunkChars: PROCESSING_DEFAULTS.ollamaChunkChars,
+  });
+  const [processingExpanded, setProcessingExpanded] = useState(false);
 
   useEffect(() => {
     if (!user || !isSuperAdmin(user)) return;
@@ -131,9 +172,16 @@ const AISettings = () => {
     const token = localStorage.getItem('token');
     axios.get('/api/users/settings', { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => {
+        const ap = res.data.aiProvider || 'ollama';
         const cp = res.data.cloudProvider || 'openai';
+        const isLocalOllama = ap === 'ollama';
+        const isLocalOther = ap === 'openai' && ['lmstudio', 'localai', 'llamacpp'].includes(cp);
+        const runLoc = isLocalOllama || isLocalOther ? 'local' : 'cloud';
+        const svc = isLocalOllama ? 'ollama' : cp;
+        setRunLocation(runLoc);
+        setService(svc);
         setAiProviderSettings({
-          aiProvider: res.data.aiProvider || 'ollama',
+          aiProvider: ap,
           cloudProvider: cp,
           cloudApiUrl: res.data.cloudApiUrl || (CLOUD_PROVIDER_PRESETS[cp]?.url || ''),
           cloudModel: res.data.cloudModel || (CLOUD_PROVIDER_PRESETS[cp]?.model || ''),
@@ -142,6 +190,13 @@ const AISettings = () => {
         setHasApiKey(res.data.hasApiKey ?? false);
         setCloudApiKeyMasked(res.data.cloudApiKeyMasked ?? '');
         setSavedCloudProvider(cp);
+        setProcessingLimits({
+          maxExtractedTextChars: typeof res.data.maxExtractedTextChars === 'number' ? res.data.maxExtractedTextChars : PROCESSING_DEFAULTS.maxExtractedTextChars,
+          aiChunkChars: typeof res.data.aiChunkChars === 'number' ? res.data.aiChunkChars : PROCESSING_DEFAULTS.aiChunkChars,
+          aiChunkDelayMs: typeof res.data.aiChunkDelayMs === 'number' ? res.data.aiChunkDelayMs : PROCESSING_DEFAULTS.aiChunkDelayMs,
+          aiMaxTextLength: typeof res.data.aiMaxTextLength === 'number' ? res.data.aiMaxTextLength : PROCESSING_DEFAULTS.aiMaxTextLength,
+          ollamaChunkChars: typeof res.data.ollamaChunkChars === 'number' ? res.data.ollamaChunkChars : PROCESSING_DEFAULTS.ollamaChunkChars,
+        });
       })
       .catch(() => toast.error('Failed to load settings'))
       .finally(() => setLoading(false));
@@ -152,15 +207,22 @@ const AISettings = () => {
     try {
       setSaving(true);
       const token = localStorage.getItem('token');
+      const aiProvider = runLocation === 'local' && service === 'ollama' ? 'ollama' : 'openai';
+      const cloudProvider = runLocation === 'local' && service === 'ollama' ? (aiProviderSettings.cloudProvider || 'openai') : service;
       const payload = {
-        aiProvider: aiProviderSettings.aiProvider,
-        cloudProvider: aiProviderSettings.cloudProvider,
+        aiProvider,
+        cloudProvider,
         cloudApiUrl: aiProviderSettings.cloudApiUrl,
         cloudModel: aiProviderSettings.cloudModel,
       };
       if (aiProviderSettings.cloudApiKey && aiProviderSettings.cloudApiKey.trim()) {
         payload.cloudApiKey = aiProviderSettings.cloudApiKey.trim();
       }
+      payload.maxExtractedTextChars = Math.min(PROCESSING_MAX.maxExtractedTextChars, Math.max(10000, Number(processingLimits.maxExtractedTextChars) || PROCESSING_DEFAULTS.maxExtractedTextChars));
+      payload.aiChunkChars = Math.min(PROCESSING_MAX.aiChunkChars, Math.max(1000, Number(processingLimits.aiChunkChars) || PROCESSING_DEFAULTS.aiChunkChars));
+      payload.aiChunkDelayMs = Math.min(PROCESSING_MAX.aiChunkDelayMs, Math.max(0, Number(processingLimits.aiChunkDelayMs) || PROCESSING_DEFAULTS.aiChunkDelayMs));
+      payload.aiMaxTextLength = Math.min(PROCESSING_MAX.aiMaxTextLength, Math.max(10000, Number(processingLimits.aiMaxTextLength) || PROCESSING_DEFAULTS.aiMaxTextLength));
+      payload.ollamaChunkChars = Math.min(PROCESSING_MAX.ollamaChunkChars, Math.max(500, Number(processingLimits.ollamaChunkChars) || PROCESSING_DEFAULTS.ollamaChunkChars));
       const res = await axios.put('/api/users/settings', payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -169,6 +231,10 @@ const AISettings = () => {
       setHasApiKey(res.data.hasApiKey ?? false);
       setCloudApiKeyMasked(res.data.cloudApiKeyMasked ?? '');
       setSavedCloudProvider(res.data.cloudProvider ?? null);
+      const ap = res.data.aiProvider || 'ollama';
+      const cp = res.data.cloudProvider || 'openai';
+      setRunLocation(ap === 'ollama' || ['lmstudio', 'localai', 'llamacpp'].includes(cp) ? 'local' : 'cloud');
+      setService(ap === 'ollama' ? 'ollama' : cp);
       dispatch(checkAIStatusAsync());
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to save setting');
@@ -177,8 +243,23 @@ const AISettings = () => {
     }
   };
 
-  const handleCloudProviderChange = (e) => {
+  const handleRunLocationChange = (e) => {
+    const loc = e.target.value;
+    setRunLocation(loc);
+    const firstService = loc === 'local' ? 'ollama' : 'openai';
+    setService(firstService);
+    const preset = CLOUD_PROVIDER_PRESETS[firstService];
+    setAiProviderSettings((prev) => ({
+      ...prev,
+      cloudProvider: firstService,
+      cloudApiUrl: preset ? preset.url : prev.cloudApiUrl,
+      cloudModel: preset ? preset.model : prev.cloudModel,
+    }));
+  };
+
+  const handleServiceChange = (e) => {
     const v = e.target.value;
+    setService(v);
     const preset = CLOUD_PROVIDER_PRESETS[v];
     setAiProviderSettings((prev) => ({
       ...prev,
@@ -201,10 +282,10 @@ const AISettings = () => {
   };
 
   const defaultInstallPanel = () => {
-    if (aiProviderSettings.aiProvider === 'ollama') return 'ollama';
-    if (aiProviderSettings.cloudProvider === 'localai') return 'localai';
-    if (aiProviderSettings.cloudProvider === 'llamacpp') return 'llamacpp';
-    if (aiProviderSettings.cloudProvider === 'lmstudio') return 'lmstudio';
+    if (runLocation === 'local' && service === 'ollama') return 'ollama';
+    if (service === 'localai') return 'localai';
+    if (service === 'llamacpp') return 'llamacpp';
+    if (service === 'lmstudio') return 'lmstudio';
     return 'ollama';
   };
 
@@ -227,11 +308,12 @@ const AISettings = () => {
         toast.success(shortMsg);
         if (port != null && (action === 'start_localai' || action === 'start_llamacpp')) {
           const baseUrl = `http://localhost:${port}/v1`;
+          setRunLocation('local');
+          setService(action === 'start_localai' ? 'localai' : 'llamacpp');
           setAiProviderSettings((prev) => ({
             ...prev,
             cloudApiUrl: baseUrl,
-            ...(action === 'start_localai' ? { cloudProvider: 'localai' } : {}),
-            ...(action === 'start_llamacpp' ? { cloudProvider: 'llamacpp' } : {}),
+            cloudProvider: action === 'start_localai' ? 'localai' : 'llamacpp',
           }));
         }
       } else {
@@ -284,66 +366,53 @@ const AISettings = () => {
           <form onSubmit={handleSave}>
             <div className="space-y-4">
               <div>
-                <label htmlFor="aiProvider" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Provider
+                <label htmlFor="runLocation" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Where does the AI run?
                 </label>
                 <select
-                  id="aiProvider"
-                  value={aiProviderSettings.aiProvider}
-                  onChange={(e) => setAiProviderSettings((prev) => ({ ...prev, aiProvider: e.target.value }))}
+                  id="runLocation"
+                  value={runLocation}
+                  onChange={handleRunLocationChange}
                   className="w-full max-w-xs px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                 >
-                  <option value="ollama">Ollama (local) – runs on your machine, no data sent out</option>
-                  <option value="openai">Cloud (OpenAI, Groq, etc.) – paid or free tier; data sent to provider</option>
+                  <option value="local">Locally (on this machine) – no data sent out</option>
+                  <option value="cloud">In the cloud (remote API) – paid or free tier</option>
                 </select>
-                {aiProviderSettings.aiProvider === 'ollama' && (
-                  <div className="mt-2 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 p-3">
-                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                      {PROVIDER_INSTRUCTIONS.ollama.freeOrPaid}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      {PROVIDER_INSTRUCTIONS.ollama.text}
-                    </p>
-                  </div>
-                )}
               </div>
 
-              {aiProviderSettings.aiProvider === 'openai' && (
+              <div>
+                <label htmlFor="service" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {runLocation === 'local' ? 'Local service' : 'Cloud service'}
+                </label>
+                <select
+                  id="service"
+                  value={service}
+                  onChange={handleServiceChange}
+                  className="w-full max-w-xs px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                >
+                  {runLocation === 'local'
+                    ? LOCAL_SERVICES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)
+                    : CLOUD_SERVICES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+                <div className="mt-2 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 p-3">
+                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                    {PROVIDER_INSTRUCTIONS[service]?.freeOrPaid ?? (runLocation === 'cloud' ? 'Paid or free tier' : 'Free (local)')}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {PROVIDER_INSTRUCTIONS[service]?.text ?? (runLocation === 'cloud' ? 'Enter API key and model below.' : 'See Install & run local AI below.')}
+                  </p>
+                </div>
+              </div>
+
+              {(runLocation === 'cloud' || (runLocation === 'local' && service !== 'ollama')) && (
                 <>
-                  <div>
-                    <label htmlFor="cloudProvider" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Cloud provider
-                    </label>
-                    <select
-                      id="cloudProvider"
-                      value={aiProviderSettings.cloudProvider}
-                      onChange={handleCloudProviderChange}
-                      className="w-full max-w-xs px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                    >
-                      <option value="openai">OpenAI (e.g. gpt-4o-mini)</option>
-                      <option value="groq">Groq (free tier, fast)</option>
-                      <option value="together">Together</option>
-                      <option value="lmstudio">LM Studio (local, GPU-friendly)</option>
-                      <option value="localai">LocalAI (local, Docker)</option>
-                      <option value="llamacpp">llama.cpp (local server)</option>
-                      <option value="custom">Custom (enter URL and model)</option>
-                    </select>
-                    <div className="mt-2 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 p-3">
-                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                        {PROVIDER_INSTRUCTIONS[aiProviderSettings.cloudProvider]?.freeOrPaid ?? PROVIDER_INSTRUCTIONS.openai.freeOrPaid}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        {PROVIDER_INSTRUCTIONS[aiProviderSettings.cloudProvider]?.text ?? PROVIDER_INSTRUCTIONS.openai.text}
-                      </p>
-                    </div>
-                  </div>
                   <div>
                     <label htmlFor="cloudApiKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       API key
                     </label>
                     {(() => {
-                      const usesApiKey = PROVIDERS_WITH_API_KEY.includes(aiProviderSettings.cloudProvider);
-                      const showStars = usesApiKey && hasApiKey && !aiProviderSettings.cloudApiKey && aiProviderSettings.cloudProvider === savedCloudProvider;
+                      const usesApiKey = PROVIDERS_WITH_API_KEY.includes(service);
+                      const showStars = usesApiKey && hasApiKey && !aiProviderSettings.cloudApiKey && service === savedCloudProvider;
                       return (
                         <>
                           <input
@@ -356,7 +425,7 @@ const AISettings = () => {
                                 ? 'No API key needed'
                                 : showStars
                                   ? 'Enter new key to replace'
-                                  : hasApiKey && aiProviderSettings.cloudProvider !== savedCloudProvider
+                                  : hasApiKey && service !== savedCloudProvider
                                     ? 'Enter API key for this provider'
                                     : 'Enter your API key'
                             }
@@ -368,7 +437,7 @@ const AISettings = () => {
                               ? 'This provider does not require an API key.'
                               : showStars
                                 ? 'Enter a new key to replace, or leave blank to keep.'
-                                : hasApiKey && aiProviderSettings.cloudProvider !== savedCloudProvider
+                                : hasApiKey && service !== savedCloudProvider
                                   ? 'API key on file is for another provider. Enter a key for this provider or switch back.'
                                   : 'Please obtain an API key from the provider above.'}
                           </p>
@@ -404,6 +473,89 @@ const AISettings = () => {
                   </div>
                 </>
               )}
+
+              <div className="border-t border-gray-200 dark:border-gray-600 pt-4 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setProcessingExpanded(!processingExpanded)}
+                  className="flex items-center justify-between w-full text-left font-medium text-gray-700 dark:text-gray-300"
+                >
+                  <span>Processing limits (chunking &amp; memory)</span>
+                  {processingExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                </button>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Defaults and max values. Lower values reduce memory use; higher allow larger files.
+                </p>
+                {processingExpanded && (
+                  <div className="mt-3 space-y-3 pl-0">
+                    <div>
+                      <label htmlFor="maxExtractedTextChars" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max extracted text per file (chars)</label>
+                      <input
+                        type="number"
+                        id="maxExtractedTextChars"
+                        min={10000}
+                        max={PROCESSING_MAX.maxExtractedTextChars}
+                        value={processingLimits.maxExtractedTextChars}
+                        onChange={(e) => setProcessingLimits((p) => ({ ...p, maxExtractedTextChars: e.target.value }))}
+                        className="w-full max-w-xs px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Default {PROCESSING_DEFAULTS.maxExtractedTextChars.toLocaleString()}. Max {PROCESSING_MAX.maxExtractedTextChars.toLocaleString()}.</p>
+                    </div>
+                    <div>
+                      <label htmlFor="aiChunkChars" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Chunk size sent to AI (chars)</label>
+                      <input
+                        type="number"
+                        id="aiChunkChars"
+                        min={1000}
+                        max={PROCESSING_MAX.aiChunkChars}
+                        value={processingLimits.aiChunkChars}
+                        onChange={(e) => setProcessingLimits((p) => ({ ...p, aiChunkChars: e.target.value }))}
+                        className="w-full max-w-xs px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Default {PROCESSING_DEFAULTS.aiChunkChars.toLocaleString()}. Max {PROCESSING_MAX.aiChunkChars.toLocaleString()}. Lower = less memory per request.</p>
+                    </div>
+                    <div>
+                      <label htmlFor="aiChunkDelayMs" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Delay between chunks (ms)</label>
+                      <input
+                        type="number"
+                        id="aiChunkDelayMs"
+                        min={0}
+                        max={PROCESSING_MAX.aiChunkDelayMs}
+                        value={processingLimits.aiChunkDelayMs}
+                        onChange={(e) => setProcessingLimits((p) => ({ ...p, aiChunkDelayMs: e.target.value }))}
+                        className="w-full max-w-xs px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Default {PROCESSING_DEFAULTS.aiChunkDelayMs}. Max {PROCESSING_MAX.aiChunkDelayMs}. Reduces rate limits.</p>
+                    </div>
+                    <div>
+                      <label htmlFor="aiMaxTextLength" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">AI service max text per request (chars)</label>
+                      <input
+                        type="number"
+                        id="aiMaxTextLength"
+                        min={10000}
+                        max={PROCESSING_MAX.aiMaxTextLength}
+                        value={processingLimits.aiMaxTextLength}
+                        onChange={(e) => setProcessingLimits((p) => ({ ...p, aiMaxTextLength: e.target.value }))}
+                        className="w-full max-w-xs px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Default {PROCESSING_DEFAULTS.aiMaxTextLength.toLocaleString()}. Max {PROCESSING_MAX.aiMaxTextLength.toLocaleString()}. Should be ≥ chunk size.</p>
+                    </div>
+                    <div>
+                      <label htmlFor="ollamaChunkChars" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ollama sub-chunk size (chars)</label>
+                      <input
+                        type="number"
+                        id="ollamaChunkChars"
+                        min={500}
+                        max={PROCESSING_MAX.ollamaChunkChars}
+                        value={processingLimits.ollamaChunkChars}
+                        onChange={(e) => setProcessingLimits((p) => ({ ...p, ollamaChunkChars: e.target.value }))}
+                        className="w-full max-w-xs px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Default {PROCESSING_DEFAULTS.ollamaChunkChars}. Max {PROCESSING_MAX.ollamaChunkChars}. For local Ollama only; lower avoids OOM.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div className="pt-2">
                 <button

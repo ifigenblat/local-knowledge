@@ -30,6 +30,21 @@ function readSettingsRaw() {
   return { aiProvider: 'ollama' };
 }
 
+const PROCESSING_DEFAULTS = {
+  maxExtractedTextChars: 500000,
+  aiChunkChars: 6000,
+  aiChunkDelayMs: 300,
+  aiMaxTextLength: 100000,
+  ollamaChunkChars: 1500,
+};
+const PROCESSING_MAX = {
+  maxExtractedTextChars: 2000000,
+  aiChunkChars: 20000,
+  aiChunkDelayMs: 5000,
+  aiMaxTextLength: 200000,
+  ollamaChunkChars: 4000,
+};
+
 function readSettings() {
   const raw = readSettingsRaw();
   const aiProvider = raw.aiProvider === 'openai' ? 'openai' : 'ollama';
@@ -38,6 +53,13 @@ function readSettings() {
   const cloudModel = typeof raw.cloudModel === 'string' ? raw.cloudModel.trim() : (PROVIDER_DEFAULTS[cloudProvider]?.model || '');
   const hasApiKey = Boolean(raw.cloudApiKey && raw.cloudApiKey.trim());
   const cloudApiKeyMasked = hasApiKey ? '••••••••' + (raw.cloudApiKey.slice(-4) || '') : '';
+  const processing = {
+    maxExtractedTextChars: typeof raw.maxExtractedTextChars === 'number' ? raw.maxExtractedTextChars : PROCESSING_DEFAULTS.maxExtractedTextChars,
+    aiChunkChars: typeof raw.aiChunkChars === 'number' ? raw.aiChunkChars : PROCESSING_DEFAULTS.aiChunkChars,
+    aiChunkDelayMs: typeof raw.aiChunkDelayMs === 'number' ? raw.aiChunkDelayMs : PROCESSING_DEFAULTS.aiChunkDelayMs,
+    aiMaxTextLength: typeof raw.aiMaxTextLength === 'number' ? raw.aiMaxTextLength : PROCESSING_DEFAULTS.aiMaxTextLength,
+    ollamaChunkChars: typeof raw.ollamaChunkChars === 'number' ? raw.ollamaChunkChars : PROCESSING_DEFAULTS.ollamaChunkChars,
+  };
   return {
     aiProvider,
     cloudProvider,
@@ -45,6 +67,7 @@ function readSettings() {
     cloudModel,
     cloudApiKeyMasked,
     hasApiKey,
+    ...processing,
   };
 }
 
@@ -76,7 +99,7 @@ router.put('/settings', async (req, res) => {
     if (role !== 'superadmin') {
       return res.status(403).json({ error: 'Only Super Administrator can change settings' });
     }
-    const { aiProvider, cloudProvider, cloudApiUrl, cloudModel, cloudApiKey } = req.body;
+    const { aiProvider, cloudProvider, cloudApiUrl, cloudModel, cloudApiKey, maxExtractedTextChars, aiChunkChars, aiChunkDelayMs, aiMaxTextLength, ollamaChunkChars } = req.body;
     if (aiProvider !== 'openai' && aiProvider !== 'ollama') {
       return res.status(400).json({ error: 'aiProvider must be "openai" or "ollama"' });
     }
@@ -89,6 +112,26 @@ router.put('/settings', async (req, res) => {
       if (typeof cloudApiKey === 'string' && cloudApiKey.trim()) {
         current.cloudApiKey = cloudApiKey.trim();
       }
+    }
+    const nMaxExt = parseInt(maxExtractedTextChars, 10);
+    if (!Number.isNaN(nMaxExt) && nMaxExt >= 10000 && nMaxExt <= PROCESSING_MAX.maxExtractedTextChars) {
+      current.maxExtractedTextChars = nMaxExt;
+    }
+    const nChunk = parseInt(aiChunkChars, 10);
+    if (!Number.isNaN(nChunk) && nChunk >= 1000 && nChunk <= PROCESSING_MAX.aiChunkChars) {
+      current.aiChunkChars = nChunk;
+    }
+    const nDelay = parseInt(aiChunkDelayMs, 10);
+    if (!Number.isNaN(nDelay) && nDelay >= 0 && nDelay <= PROCESSING_MAX.aiChunkDelayMs) {
+      current.aiChunkDelayMs = nDelay;
+    }
+    const nAiMax = parseInt(aiMaxTextLength, 10);
+    if (!Number.isNaN(nAiMax) && nAiMax >= 10000 && nAiMax <= PROCESSING_MAX.aiMaxTextLength) {
+      current.aiMaxTextLength = nAiMax;
+    }
+    const nOllama = parseInt(ollamaChunkChars, 10);
+    if (!Number.isNaN(nOllama) && nOllama >= 500 && nOllama <= PROCESSING_MAX.ollamaChunkChars) {
+      current.ollamaChunkChars = nOllama;
     }
     writeSettings(current);
     res.json(readSettings());

@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 
 const OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama2';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
 const OLLAMA_ENABLED = process.env.OLLAMA_ENABLED === 'true';
 
 const OPENAI_API_URL = (process.env.OPENAI_API_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
@@ -48,6 +48,21 @@ function invalidateSettingsCache() {
   cachedSettingsTime = 0;
 }
 
+/** Max characters per /generate-cards request (from settings or env). Used by aiRoutes. */
+function getAIMaxTextLength() {
+  const s = getSettings();
+  if (typeof s.aiMaxTextLength === 'number' && s.aiMaxTextLength >= 10000) return s.aiMaxTextLength;
+  const env = parseInt(process.env.AI_MAX_TEXT_LENGTH, 10);
+  return !Number.isNaN(env) && env >= 10000 ? env : 100000;
+}
+
+/** Chunk size for local Ollama (from settings or default). */
+function getOllamaChunkChars() {
+  const s = getSettings();
+  if (typeof s.ollamaChunkChars === 'number' && s.ollamaChunkChars >= 500) return s.ollamaChunkChars;
+  return MAX_CHUNK_CHARS_OLLAMA;
+}
+
 function getConfiguredAIProvider() {
   const s = getSettings();
   if (s.aiProvider === 'openai') return 'openai';
@@ -81,8 +96,12 @@ function useOpenAI() {
   return Boolean(OPENAI_API_KEY && OPENAI_API_KEY.trim());
 }
 
-const AI_CHAT_TIMEOUT_MS = 90000; // 90s per request to allow slow/local models
+const AI_CHAT_TIMEOUT_MS = Number(process.env.AI_CHAT_TIMEOUT_MS) || 300000; // 5 min default for slow/local models (Cloud API)
 const AI_CHAT_MAX_RETRIES = 2;
+if (typeof process !== 'undefined' && process.env && !process.env.AI_CHAT_TIMEOUT_LOGGED) {
+  console.log(`AI chat timeout: ${AI_CHAT_TIMEOUT_MS} ms (${Math.round(AI_CHAT_TIMEOUT_MS / 1000)}s)`);
+  process.env.AI_CHAT_TIMEOUT_LOGGED = '1';
+}
 const AI_CHAT_RETRY_DELAY_MS = 3000;
 
 async function callOpenAIChat(prompt, maxTokens = 800) {
@@ -206,10 +225,17 @@ async function isOllamaAvailable() {
 }
 
 async function regenerateCardWithAI(snippet, sourceFileName = 'regenerated') {
-  const maxSnippetLength = 1000;
-  const truncatedSnippet = snippet.length > maxSnippetLength
-    ? snippet.substring(0, maxSnippetLength) + '...'
-    : snippet;
+  // Use small snippet for Ollama to avoid "model runner stopped" (local models can OOM)
+  const maxSnippetCloud = 1000;
+  const maxSnippetOllama = 350;
+  const useOllama = !useOpenAI();
+  const maxSnippetLength = useOllama ? maxSnippetOllama : maxSnippetCloud;
+  const truncatedSnippet = (snippet && typeof snippet === 'string')
+    ? (snippet.length > maxSnippetLength ? snippet.substring(0, maxSnippetLength).trim() + '...' : snippet.trim())
+    : '';
+  if (!truncatedSnippet || truncatedSnippet.length < 20) {
+    throw new Error('Snippet too short for AI regeneration (need at least 20 characters)');
+  }
 
   const prompt = `Analyze this text and return JSON only:
 
@@ -281,7 +307,8 @@ JSON format:
         options: {
           temperature: 0.2,
           top_p: 0.8,
-          num_predict: 500,
+          num_predict: 300,
+          num_ctx: 1024,
         },
       }),
     });
@@ -434,7 +461,7 @@ Text${chunkContext}:
 ${truncatedSnippet}`;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 90000);
+  const timeoutId = setTimeout(() => controller.abort(), AI_CHAT_TIMEOUT_MS);
 
   let response;
   try {
@@ -671,26 +698,34 @@ ${chunk}`;
     return allCards;
   }
 
-  // For Ollama: use conservative limits to prevent OOM
+  // For Ollama (and other local): process full incoming text in sub-chunks to avoid OOM
+  // (Upload-service already sends ~6k-char chunks; we sub-chunk for local model context limits.)
   if (!OLLAMA_ENABLED) throw new Error('No AI configured. Set OPENAI_API_KEY or OLLAMA_ENABLED=true.');
   const available = await isOllamaAvailable();
   if (!available) throw new Error('Ollama is not running or not available');
 
-  const snippet = trimmed.length > MAX_DOCUMENT_CHARS_OLLAMA
-    ? trimmed.substring(0, MAX_DOCUMENT_CHARS_OLLAMA) + '...'
-    : trimmed;
+  const ollamaChunkSize = getOllamaChunkChars();
+  const subChunks = trimmed.length <= ollamaChunkSize
+    ? [trimmed]
+    : chunkText(trimmed, ollamaChunkSize, CHUNK_OVERLAP);
+  const totalSub = subChunks.length;
+  console.log(`🤖 Generating cards via Ollama - ${totalSub} sub-chunk(s), ${trimmed.length} chars total (${ollamaChunkSize} chars/chunk)`);
 
-  console.log(`🤖 Generating cards from first ${snippet.length} chars (Ollama)`);
-  try {
-    const cards = await generateCardsFromChunk(snippet, sourceFileName, 0, 1);
-    if (!cards || cards.length === 0) throw new Error('AI could not generate cards from the document');
-    console.log(`✅ Generated ${cards.length} cards from document`);
-    return cards;
-  } catch (chunkError) {
-    const msg = chunkError && typeof chunkError.message === 'string' ? chunkError.message : String(chunkError);
-    console.warn('AI document processing failed:', msg);
-    throw chunkError instanceof Error ? chunkError : new Error(msg);
+  const allCards = [];
+  for (let i = 0; i < totalSub; i++) {
+    const snippet = subChunks[i];
+    if (!snippet || snippet.length < 20) continue;
+    try {
+      const chunkCards = await generateCardsFromChunk(snippet, sourceFileName, i, totalSub);
+      if (chunkCards && chunkCards.length > 0) allCards.push(...chunkCards);
+      if (i < totalSub - 1) await new Promise(r => setTimeout(r, 400));
+    } catch (err) {
+      console.warn(`⚠️  Ollama sub-chunk ${i + 1}/${totalSub} failed: ${err.message}. Continuing.`);
+    }
   }
+  if (allCards.length === 0) throw new Error('AI could not generate cards from the document (all sub-chunks failed or returned no cards)');
+  console.log(`✅ Generated ${allCards.length} cards via Ollama`);
+  return allCards;
 }
 
 const CLOUD_PROVIDER_LABELS = { openai: 'OpenAI', groq: 'Groq', together: 'Together', lmstudio: 'LM Studio', localai: 'LocalAI', llamacpp: 'llama.cpp', custom: 'Custom' };
@@ -794,6 +829,7 @@ module.exports = {
   regenerateCardWithAI,
   generateCardsFromDocument,
   getOllamaStatus,
+  getAIMaxTextLength,
   isOllamaAvailable,
   invalidateSettingsCache,
 };

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install Ollama for local AI (used when Provider = Ollama in LocalKnowledge).
-# After install: run `ollama serve` (or start Ollama app on macOS), then `ollama pull phi`.
+# After install: run `ollama serve` (or start Ollama app on macOS), then `ollama pull llama3.2`.
 
 set -e
 OLLAMA_URL_LINUX="${OLLAMA_INSTALL_URL:-https://ollama.com/install.sh}"
@@ -10,7 +10,7 @@ echo "=== Ollama installer for LocalKnowledge ==="
 
 if command -v ollama &>/dev/null; then
   echo "Ollama is already installed: $(ollama --version 2>/dev/null || ollama -v 2>/dev/null || echo 'unknown')"
-  echo "Run: ollama serve    (then in another terminal: ollama pull phi)"
+  echo "Run: ollama serve    (then in another terminal: ollama pull llama3.2)"
   exit 0
 fi
 
@@ -24,14 +24,14 @@ case "$(uname -s)" in
       exit 1
     fi
     echo "Done. Start the server: ollama serve"
-    echo "Then pull a model: ollama pull phi"
+    echo "Then pull a model: ollama pull llama3.2"
     ;;
   Darwin)
     echo "macOS: Install Ollama from the official app or Homebrew."
     if command -v brew &>/dev/null; then
       echo "Installing via Homebrew..."
       brew install ollama
-      echo "Done. Start: ollama serve   then: ollama pull phi"
+      echo "Done. Start: ollama serve   then: ollama pull llama3.2"
     else
       echo "Download the app: $OLLAMA_DOWNLOAD_MAC"
       echo "Or install Homebrew and run: brew install ollama"

@@ -172,11 +172,13 @@ class CardService {
         source = source ? `${source}, ${file.originalname}` : file.originalname;
       }
       const prov = !existingCard.provenance?.source_file_id ? provenance : undefined;
-      const card = await CardRepository.updateCard(existingCard, {
+      const updatePayload = {
         attachments: [newAttachment],
         source,
         provenance: prov,
-      });
+      };
+      if (cardData.generatedBy) updatePayload.generatedBy = cardData.generatedBy;
+      const card = await CardRepository.updateCard(existingCard, updatePayload);
       return { card, isDuplicate: true };
     }
 

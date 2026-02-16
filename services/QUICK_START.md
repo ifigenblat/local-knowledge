@@ -67,7 +67,7 @@ For **“Use AI to create cards”** on the Upload page:
   - `OPENAI_API_KEY` – e.g. from [Groq](https://console.groq.com) (free) or OpenAI
   - `OPENAI_API_URL` – e.g. `https://api.groq.com/openai/v1` for Groq
   - `OPENAI_MODEL` – e.g. `llama-3.1-8b-instant` (Groq) or `gpt-4o-mini` (OpenAI)
-- **Local AI (no API key):** See **[LOCAL_AI_SETUP.md](./LOCAL_AI_SETUP.md)**. Quick: Ollama → `npm run local-ai:install-ollama` then `ollama serve` + `ollama pull phi`; LocalAI → `npm run local-ai:start-localai`; llama.cpp → put GGUF in `.models/llamacpp/` then `npm run local-ai:start-llamacpp`; LM Studio → install from [lmstudio.ai](https://lmstudio.ai) and start server. In AI Settings choose Provider and Cloud provider.
+- **Local AI (no API key):** See **[LOCAL_AI_SETUP.md](./LOCAL_AI_SETUP.md)**. Quick: Ollama → `npm run local-ai:install-ollama` then `ollama serve` + `ollama pull llama3.2`; LocalAI → `npm run local-ai:start-localai`; llama.cpp → put GGUF in `.models/llamacpp/` then `npm run local-ai:start-llamacpp`; LM Studio → install from [lmstudio.ai](https://lmstudio.ai) and start server. In AI Settings choose Provider and Cloud provider.
 
 ## Observability
 

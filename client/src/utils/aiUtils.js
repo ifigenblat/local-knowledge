@@ -1,5 +1,5 @@
 /**
- * Returns a short display name for the current AI provider (e.g. "Ollama phi", "Groq llama-3").
+ * Returns a short display name for the current AI provider (e.g. "Ollama llama3.2", "Groq llama-3").
  * Use this so UI messages are dynamic and not hardcoded to a specific provider.
  * @param {{ provider?: string, cloudLabel?: string, model?: string }} aiStatus
  * @returns {string}

@@ -87,9 +87,9 @@ ollama serve
 # In another terminal, pull a model
 ollama pull llama2
 
-# Or use a smaller/faster model:
+# Or use another model:
 ollama pull mistral
-ollama pull phi
+ollama pull llama3.2
 ```
 
 **Verify**: `ollama list` should show the installed model
@@ -192,22 +192,16 @@ OLLAMA_MODEL=llama2  # Use the model you installed
 
 ## Model Recommendations
 
-- **Recommended (Stable)**: `llama2` (~10-30s per regeneration, 3.8GB)
-  - Most stable, produces good results
-  - Default model in configuration
-  - Tested and verified to work reliably
-
-- **Not Recommended**: `phi` (~3-8s per regeneration, 1.6GB)
-  - Faster but unstable - may crash on complex content
-  - Not recommended for production use
-  - Was tested but found to have reliability issues
+- **Recommended (Stable)**: `llama3.2` (~2GB) or `llama2` (~3.8GB)
+  - Both stable and produce good results
+  - Set `OLLAMA_MODEL=llama3.2` or `OLLAMA_MODEL=llama2` in ai-service .env
 
 - **Alternative Options**:
   - `mistral` - Good balance if available
+  - `llama3.2:1b` - Smaller, faster, less RAM
   - `llama2:13b` - Higher quality but slower and requires more RAM
-  - `tinyllama` - Very fast but lower quality
 
-**Note**: The application defaults to `llama2` for stability. You can change `OLLAMA_MODEL` in `.env` to use a different model, but test thoroughly as some models may have compatibility issues.
+**Note**: The application defaults to `llama3.2`. You can change `OLLAMA_MODEL` in `.env` to use a different model (e.g. llama2, mistral).
 
 ## Comparison View Feature
 

@@ -6,7 +6,7 @@ This guide installs and runs the local AI options integrated in the app: **Ollam
 
 | Provider    | Port | API key | How to run |
 |------------|------|---------|------------|
-| **Ollama** | 11434 | No | Install + `ollama serve` + `ollama pull phi` |
+| **Ollama** | 11434 | No | Install + `ollama serve` + `ollama pull llama3.2` |
 | **LocalAI** | 8080 | No | Docker or `./scripts/local-ai/start-localai.sh` |
 | **llama.cpp** | 8081 | No | Docker + GGUF model or `./scripts/local-ai/start-llamacpp.sh` |
 | **LM Studio** | 1234 | No | Install app, load model, start local server |
@@ -44,7 +44,7 @@ cd services
 
 2. Pull a small model (one-time):
    ```bash
-   ollama pull phi
+   ollama pull llama3.2
    ```
    Or: `ollama pull llama3.2`, `ollama pull mistral`, etc.
 
@@ -165,6 +165,6 @@ Make scripts executable once: `chmod +x scripts/local-ai/*.sh`
 
 ## Troubleshooting
 
-- **Ollama**: Ensure `ollama serve` is running and `ollama pull phi` (or your model) has completed. In LocalKnowledge use **Provider: Ollama** and set `OLLAMA_ENABLED=true` for ai-service.
+- **Ollama**: Ensure `ollama serve` is running and `ollama pull llama3.2` (or your model) has completed. In LocalKnowledge use **Provider: Ollama** and set `OLLAMA_ENABLED=true` and `OLLAMA_MODEL=llama3.2` for ai-service.
 - **LocalAI / llama.cpp**: “Local server not reachable” → check the process is running (e.g. `docker ps`) and the URL in AI Settings (e.g. `http://localhost:8080/v1` or `http://localhost:8081/v1`).
 - **LM Studio**: Start the in-app server and use Base URL `http://localhost:1234/v1` and the exact model name shown in LM Studio.

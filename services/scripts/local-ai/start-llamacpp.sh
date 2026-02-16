@@ -24,7 +24,7 @@ if [ -z "$MODEL_NAME" ]; then
   MODEL_NAME=$(find "$MODELS_DIR" -maxdepth 1 -name "*.gguf" -type f 2>/dev/null | head -1)
   if [ -z "$MODEL_NAME" ]; then
     echo "No GGUF model found in $MODELS_DIR"
-    echo "Download a model (e.g. Llama-3.2-1B or phi-2) and place the .gguf file in: $MODELS_DIR"
+    echo "Download a model (e.g. Llama-3.2-1B) and place the .gguf file in: $MODELS_DIR"
     echo "Example: wget -O $MODELS_DIR/model.gguf 'https://huggingface.co/.../model.Q4_K_M.gguf'"
     echo "Then set LLAMACPP_MODEL_NAME to the filename, e.g. export LLAMACPP_MODEL_NAME=model.gguf"
     exit 1

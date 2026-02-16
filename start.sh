@@ -22,11 +22,15 @@ if nc -z localhost 5432 2>/dev/null; then
   echo -e "${GREEN}✓${NC} already running"
 else
   if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
-    if [ -f services/docker-compose.yml ]; then
-      echo -e "${BLUE}starting via docker-compose...${NC}"
-      (cd services && docker compose up -d postgres 2>/dev/null || docker-compose up -d postgres 2>/dev/null) || true
+    # Prefer starting existing container (avoids "name already in use" after stop.sh)
+    if docker ps -a -q --filter "name=localknowledge-postgres" 2>/dev/null | grep -q .; then
+      echo -e "${BLUE}starting existing container...${NC}"
+      docker start localknowledge-postgres 2>/dev/null || true
+    elif [ -f services/docker-compose.yml ]; then
+      echo -e "${BLUE}creating and starting via docker-compose...${NC}"
+      (cd services && (docker compose up -d postgres 2>/dev/null || docker-compose up -d postgres 2>/dev/null)) || true
     else
-      echo -e "${YELLOW}starting postgres container...${NC}"
+      echo -e "${YELLOW}creating postgres container...${NC}"
       docker run -d --name localknowledge-postgres \
         -p 5432:5432 \
         -e POSTGRES_USER=localknowledge \

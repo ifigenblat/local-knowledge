@@ -9,6 +9,7 @@ const fs = require('fs');
 const OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
 const OLLAMA_ENABLED = process.env.OLLAMA_ENABLED === 'true';
+const KNOWLEDGE_OLLAMA_MODEL = process.env.KNOWLEDGE_OLLAMA_MODEL || OLLAMA_MODEL;
 
 const OPENAI_API_URL = (process.env.OPENAI_API_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
@@ -825,6 +826,44 @@ async function getOllamaStatus() {
   return status;
 }
 
+/** Generate a chat-style response (plain text). Uses Cloud API or Ollama based on config. */
+async function chatGenerate(prompt, maxTokens = 500) {
+  if (useOpenAI()) {
+    return callOpenAIChat(prompt, maxTokens);
+  }
+  if (!OLLAMA_ENABLED) throw new Error('No AI configured. Set OPENAI_API_KEY or OLLAMA_ENABLED=true.');
+  const available = await isOllamaAvailable();
+  if (!available) throw new Error('Ollama is not running or not available');
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AI_CHAT_TIMEOUT_MS);
+  try {
+    const model = KNOWLEDGE_OLLAMA_MODEL || OLLAMA_MODEL;
+    const res = await fetch(`${OLLAMA_API_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        prompt,
+        stream: false,
+        options: { temperature: 0.3, top_p: 0.9, num_predict: Math.min(maxTokens, 150), num_ctx: 2048 },
+      }),
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(errText || `Ollama error: ${res.status}`);
+    }
+    const data = await res.json();
+    const text = data.response?.trim() || '';
+    if (!text) throw new Error('Empty response from Ollama');
+    return text;
+  } catch (e) {
+    clearTimeout(timeoutId);
+    throw e;
+  }
+}
+
 module.exports = {
   regenerateCardWithAI,
   generateCardsFromDocument,
@@ -832,4 +871,6 @@ module.exports = {
   getAIMaxTextLength,
   isOllamaAvailable,
   invalidateSettingsCache,
+  callOpenAIChat,
+  chatGenerate,
 };

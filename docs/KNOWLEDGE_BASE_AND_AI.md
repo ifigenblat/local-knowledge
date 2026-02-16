@@ -44,3 +44,21 @@ To support “ask a question and get an answer from my data”:
 - **Ai-service**: `AI_MAX_TEXT_LENGTH` (default 100000). Requests with larger `text` get 413; upload-service already sends only chunks.
 
 You can lower `MAX_EXTRACTED_TEXT_CHARS` or `AI_CHUNK_CHARS` further if you still see high memory usage (e.g. many concurrent uploads or very large single files).
+
+---
+
+## Implementation (RAG)
+
+### Endpoints
+
+- **POST /api/ai/knowledge/embed** – Body: `{ cards: [{ id, title, content }] }`. Requires auth. Embeds cards using OpenAI-compatible `/embeddings` API; stores in `card_embeddings` table.
+- **POST /api/ai/knowledge/ask** – Body: `{ question, topK? }`. Requires auth. Retrieves top‑k similar cards, calls LLM with context, returns `{ answer, sources }`.
+
+### Setup
+
+1. Run migration: `cd services && npm run migrate-knowledge`
+2. **Embeddings** require a provider that supports `/embeddings`:
+   - **Groq and LM Studio do NOT support embeddings** (chat-only APIs). For Knowledge, set **EMBED_API_URL** and **EMBED_API_KEY** to OpenAI in `ai-service/.env`; chat can stay on Groq.
+   - **OpenAI** – Set `EMBED_API_URL=https://api.openai.com/v1`, `EMBED_API_KEY=sk-...`, `EMBED_MODEL=text-embedding-3-small`.
+   - **Ollama** – `ollama pull nomic-embed-text`, then `OLLAMA_ENABLED=true` and aiProvider: Ollama in settings. If you get "model runner stopped" (OOM), use a lighter model for Q&A: `ollama pull llama3.2:1b` and set `KNOWLEDGE_OLLAMA_MODEL=llama3.2:1b` in ai-service .env.
+3. Frontend: Knowledge page → Embed my cards → Ask a question.

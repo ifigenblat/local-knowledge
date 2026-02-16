@@ -1,5 +1,6 @@
 const express = require('express');
 const { regenerateCardWithAI, generateCardsFromDocument, getOllamaStatus, getAIMaxTextLength, invalidateSettingsCache } = require('../aiProcessor');
+const { embedCards, askQuestion } = require('../knowledge/handlers');
 
 const router = express.Router();
 
@@ -54,5 +55,27 @@ router.post('/regenerate', asyncHandler(async (req, res) => {
   const result = await regenerateCardWithAI(snippet, sourceFileName || 'regenerated');
   if (!res.headersSent) res.json(result);
 }));
+
+const knowledgeEmbed = asyncHandler(async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { cards } = req.body || {};
+  const result = await embedCards(cards || [], userId);
+  if (!res.headersSent) res.json(result);
+});
+const knowledgeAsk = asyncHandler(async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { question, topK } = req.body || {};
+  const result = await askQuestion(question, userId, topK);
+  if (!res.headersSent) res.json(result);
+});
+
+/** POST /knowledge/embed – Body: { cards: [{ id, title, content }] } */
+router.post('/knowledge/embed', knowledgeEmbed);
+/** Fallback: gateway may forward with /api/ai prefix intact */
+router.post('/api/ai/knowledge/embed', knowledgeEmbed);
+
+/** POST /knowledge/ask – Body: { question, topK? } */
+router.post('/knowledge/ask', knowledgeAsk);
+router.post('/api/ai/knowledge/ask', knowledgeAsk);
 
 module.exports = router;

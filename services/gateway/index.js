@@ -338,7 +338,10 @@ app.use('/api/ai', validateToken, createProxyMiddleware({
   changeOrigin: true,
   timeout: 180000,
   proxyTimeout: 180000,
-  pathRewrite: (path, req) => (req.originalUrl || path).replace(/^\/api\/ai/, ''),
+  pathRewrite: (path, req) => {
+        const p = (req.originalUrl || path || '').replace(/^\/api\/ai/, '') || '/';
+        return p.startsWith('/') ? p : '/' + p;
+      },
   onError: (err, req, res) => {
     console.error('Error proxying to AI service:', err.message);
     if (!res.headersSent) {

@@ -7,6 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "sync-postgres": "node scripts/sync-postgres-schema.js",
     "seed-postgres": "node scripts/seed-postgres.js",
+    "migrate-knowledge": "node scripts/migrate-knowledge.js",
     "restart": "./restart-all.sh",
     "start:ai": "./scripts/start-ai-service.sh",
     "local-ai:install-ollama": "./scripts/local-ai/install-ollama.sh",

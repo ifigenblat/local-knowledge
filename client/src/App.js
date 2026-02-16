@@ -17,6 +17,7 @@ import Roles from './pages/Roles';
 import Users from './pages/Users';
 import ContentRules from './pages/ContentRules';
 import AISettings from './pages/AISettings';
+import Knowledge from './pages/Knowledge';
 import Layout from './components/Layout';
 
 const App = () => {
@@ -64,6 +65,7 @@ const App = () => {
         <Route path="/cards" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Cards /></Layout>) : <Navigate to="/login" />} />
         <Route path="/view" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><View /></Layout>) : <Navigate to="/login" />} />
         <Route path="/collections" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Collections /></Layout>) : <Navigate to="/login" />} />
+        <Route path="/knowledge" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Knowledge /></Layout>) : <Navigate to="/login" />} />
         <Route path="/settings" element={isAuthenticated ? <Layout><Settings /></Layout> : <Navigate to="/login" />} />
         <Route path="/roles" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Roles /></Layout>) : <Navigate to="/login" />} />
         <Route path="/users" element={isAuthenticated ? (mustChangePassword ? <Navigate to="/settings?changePassword=true" /> : <Layout><Users /></Layout>) : <Navigate to="/login" />} />

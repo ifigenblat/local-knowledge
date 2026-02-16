@@ -16,7 +16,8 @@ import {
   Shield,
   Users,
   Settings2,
-  Cpu
+  Cpu,
+  Search
 } from 'lucide-react';
 import { isAdmin, hasPermission, isSuperAdmin } from '../utils/permissions';
 
@@ -136,6 +137,15 @@ const Layout = ({ children }) => {
             >
               <FolderOpen className="w-5 h-5 mr-3" />
               Collections
+            </Link>
+
+            <Link
+              to="/knowledge"
+              onClick={handleLinkClick}
+              className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${getActiveClass('/knowledge')}`}
+            >
+              <Search className="w-5 h-5 mr-3" />
+              Knowledge
             </Link>
 
             {/* Admin Section */}

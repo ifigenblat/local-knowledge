@@ -71,7 +71,7 @@ async function askQuestion(question, userId, topK = 5) {
     ctx += block;
   }
 
-  const systemPrompt = 'You answer only from the provided context (user\'s knowledge base cards). If the answer is not in the context, say so. Be concise.';
+  const systemPrompt = 'You are a helpful assistant over the user\'s knowledge base (cards below). Base your answers on this context. You may summarize, recommend, suggest collections or next steps, and answer questions—using the card content as the source. If the question cannot be informed by the context at all, say so briefly; otherwise give a useful, concise answer.';
   const userPrompt = `Context:\n\n${ctx}\n\nQuestion: ${q}`;
   const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
 

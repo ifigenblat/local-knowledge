@@ -61,4 +61,5 @@ You can lower `MAX_EXTRACTED_TEXT_CHARS` or `AI_CHUNK_CHARS` further if you stil
    - **Groq and LM Studio do NOT support embeddings** (chat-only APIs). For Knowledge, set **EMBED_API_URL** and **EMBED_API_KEY** to OpenAI in `ai-service/.env`; chat can stay on Groq.
    - **OpenAI** – Set `EMBED_API_URL=https://api.openai.com/v1`, `EMBED_API_KEY=sk-...`, `EMBED_MODEL=text-embedding-3-small`.
    - **Ollama** – `ollama pull nomic-embed-text`, then `OLLAMA_ENABLED=true` and aiProvider: Ollama in settings. If you get "model runner stopped" (OOM), use a lighter model for Q&A: `ollama pull llama3.2:1b` and set `KNOWLEDGE_OLLAMA_MODEL=llama3.2:1b` in ai-service .env.
-3. Frontend: Knowledge page → Embed my cards → Ask a question.
+3. **Card regeneration (Ollama)** – If AI regeneration fails with "model runner stopped", set `OLLAMA_REGENERATE_MODEL=llama3.2:1b` in ai-service .env, run `ollama pull llama3.2:1b`, then restart ai-service. Chat/other features can still use `OLLAMA_MODEL`.
+4. Frontend: Knowledge page → Embed my cards → Ask a question.

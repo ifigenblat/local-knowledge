@@ -10,6 +10,8 @@ const OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
 const OLLAMA_ENABLED = process.env.OLLAMA_ENABLED === 'true';
 const KNOWLEDGE_OLLAMA_MODEL = process.env.KNOWLEDGE_OLLAMA_MODEL || OLLAMA_MODEL;
+/** Model for card regeneration; default to small 1B to avoid OOM. Override with OLLAMA_REGENERATE_MODEL to use same as chat. */
+const OLLAMA_REGENERATE_MODEL = process.env.OLLAMA_REGENERATE_MODEL || 'llama3.2:1b';
 
 const OPENAI_API_URL = (process.env.OPENAI_API_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
@@ -302,14 +304,14 @@ JSON format:
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
-        model: OLLAMA_MODEL,
+        model: OLLAMA_REGENERATE_MODEL,
         prompt,
         stream: false,
         options: {
           temperature: 0.2,
           top_p: 0.8,
           num_predict: 300,
-          num_ctx: 1024,
+          num_ctx: 512,
         },
       }),
     });
@@ -319,7 +321,11 @@ JSON format:
     if (fetchError.name === 'AbortError') {
       throw new Error('Ollama request timed out after 30 seconds. The model may be overloaded. Please try again.');
     }
-    throw new Error(`Failed to connect to Ollama: ${fetchError.message}`);
+    let msg = `Failed to connect to Ollama: ${fetchError.message}`;
+    if (/ECONNREFUSED|ECONNRESET|socket hang up|model runner/i.test(fetchError.message || '')) {
+      msg += ' If the model runner stopped (OOM), set OLLAMA_REGENERATE_MODEL=llama3.2:1b in ai-service .env, run ollama pull llama3.2:1b, then restart ai-service.';
+    }
+    throw new Error(msg);
   }
 
   if (!response.ok) {
@@ -334,6 +340,10 @@ JSON format:
       }
     } catch (e) {
       console.error('Error reading Ollama error response:', e.message);
+    }
+    const isOomLike = /model runner|unexpectedly stopped|resource|memory|OOM/i.test(errorMessage);
+    if (isOomLike) {
+      errorMessage += ' Set OLLAMA_REGENERATE_MODEL=llama3.2:1b in ai-service .env, run ollama pull llama3.2:1b, then restart ai-service. Or switch to Cloud AI in Settings.';
     }
     throw new Error(errorMessage);
   }
@@ -379,7 +389,7 @@ JSON format:
     generatedBy: 'ai',
     provenance: {
       snippet: snippetPreview,
-      model_name: OLLAMA_MODEL,
+      model_name: OLLAMA_REGENERATE_MODEL,
       location: 'AI-generated from snippet',
     },
   };

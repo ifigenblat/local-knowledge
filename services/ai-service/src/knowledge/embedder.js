@@ -40,13 +40,13 @@ function getEmbedConfig() {
   const apiKey = (process.env.EMBED_API_KEY || s.cloudApiKey || process.env.OPENAI_API_KEY || '').trim();
   const isGroq = /groq\.com/i.test(apiUrl);
   const isLocal = /localhost|127\.0\.0\.1/i.test(apiUrl);
-  if ((isGroq || isLocal) && !embedUrlSet) {
+  if (isLocal && !embedUrlSet) {
     return {
       provider: 'unsupported',
-      message: 'Groq and LM Studio do not support embeddings. For the Knowledge feature, set EMBED_API_URL and EMBED_API_KEY to OpenAI in ai-service .env (e.g. EMBED_API_URL=https://api.openai.com/v1, EMBED_API_KEY=sk-...). Chat can stay on Groq. Or use Ollama: ollama pull nomic-embed-text and OLLAMA_ENABLED=true.',
+      message: 'LM Studio and local chat servers do not support embeddings. For the Knowledge feature, set EMBED_API_URL and EMBED_API_KEY in ai-service .env (e.g. OpenAI: EMBED_API_URL=https://api.openai.com/v1, EMBED_API_KEY=sk-...; or Groq with EMBED_MODEL=nomic-embed-text-v1.5). Or use Ollama: ollama pull nomic-embed-text and OLLAMA_ENABLED=true.',
     };
   }
-  const model = process.env.EMBED_MODEL || 'text-embedding-3-small';
+  const model = process.env.EMBED_MODEL || (isGroq ? 'nomic-embed-text-v1.5' : 'text-embedding-3-small');
   return { provider: 'openai', apiKey, apiUrl, model };
 }
 

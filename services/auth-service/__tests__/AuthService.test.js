@@ -219,7 +219,9 @@ describe('AuthService', () => {
       axios.get.mockResolvedValue({ data: { _id: 'r1' } });
       axios.post.mockRejectedValue({ response: { data: { error: 'Duplicate email' } } });
 
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       await expect(AuthService.register('A', 'a@t.com', 'pass123')).rejects.toThrow('Duplicate email');
+      consoleSpy.mockRestore();
     });
   });
 

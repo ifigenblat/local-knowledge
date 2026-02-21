@@ -51,8 +51,8 @@ PORT=5008 npm start
 
 ## Testing
 
-- **Unit** (Jest): `npm test` or `npm run test:watch`
-- **Functional** (gateway + service running): `npm run test:endpoints`
-- **Integration**: `npm run test:integration`
+From this directory (gateway + service running for functional/integration):
 
-From repo root: `npm run test:ai` (functional), `npm run test:ai:integration` (integration).
+- **Unit** (Jest): `npm test` or `npm run test:watch`
+- **Functional**: `npm run test:endpoints`
+- **Integration**: `npm run test:integration`

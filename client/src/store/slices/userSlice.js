@@ -21,7 +21,7 @@ export const fetchUsers = createAsyncThunk(
       return response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.error || 'Failed to fetch users'
+        error.response?.data?.message || error.response?.data?.error || 'Failed to fetch users'
       );
     }
   }
@@ -40,7 +40,7 @@ export const fetchUser = createAsyncThunk(
       return response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.error || 'Failed to fetch user'
+        error.response?.data?.message || error.response?.data?.error || 'Failed to fetch user'
       );
     }
   }
@@ -59,7 +59,7 @@ export const createUser = createAsyncThunk(
       return response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.error || 'Failed to create user'
+        error.response?.data?.message || error.response?.data?.error || 'Failed to create user'
       );
     }
   }
@@ -78,7 +78,7 @@ export const updateUser = createAsyncThunk(
       return response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.error || 'Failed to update user'
+        error.response?.data?.message || error.response?.data?.error || 'Failed to update user'
       );
     }
   }
@@ -97,7 +97,7 @@ export const deleteUser = createAsyncThunk(
       return userId;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.error || 'Failed to delete user'
+        error.response?.data?.message || error.response?.data?.error || 'Failed to delete user'
       );
     }
   }
@@ -120,7 +120,7 @@ export const assignRoleToUser = createAsyncThunk(
       return response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.error || 'Failed to assign role'
+        error.response?.data?.message || error.response?.data?.error || 'Failed to assign role'
       );
     }
   }

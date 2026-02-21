@@ -43,8 +43,12 @@ CONFIG_PATH="${CONFIG_PATH:-$(cd "$SCRIPT_DIR" && pwd)/config}"
 
 # Auth Service
 echo -e "${YELLOW}Starting Auth Service...${NC}"
+if [ ! -d auth-service/node_modules ]; then
+  echo -e "  ${YELLOW}Installing auth-service dependencies...${NC}"
+  (cd auth-service && npm install)
+fi
 cd auth-service
-PORT=5001 npm run dev > ../logs/auth-service.log 2>&1 &
+PORT=5001 npm start > ../logs/auth-service.log 2>&1 &
 AUTH_PID=$!
 echo "  Auth Service PID: $AUTH_PID (port 5001)"
 cd ..
@@ -53,8 +57,12 @@ sleep 2
 
 # User Service
 echo -e "${YELLOW}Starting User Service...${NC}"
+if [ ! -d user-service/node_modules ]; then
+  echo -e "  ${YELLOW}Installing user-service dependencies...${NC}"
+  (cd user-service && npm install)
+fi
 cd user-service
-CONFIG_PATH="$CONFIG_PATH" PORT=5002 npm run dev > ../logs/user-service.log 2>&1 &
+CONFIG_PATH="$CONFIG_PATH" PORT=5002 npm start > ../logs/user-service.log 2>&1 &
 USER_PID=$!
 echo "  User Service PID: $USER_PID (port 5002)"
 cd ..
@@ -63,8 +71,12 @@ sleep 2
 
 # Role Service
 echo -e "${YELLOW}Starting Role Service...${NC}"
+if [ ! -d role-service/node_modules ]; then
+  echo -e "  ${YELLOW}Installing role-service dependencies...${NC}"
+  (cd role-service && npm install)
+fi
 cd role-service
-PORT=5003 npm run dev > ../logs/role-service.log 2>&1 &
+PORT=5003 npm start > ../logs/role-service.log 2>&1 &
 ROLE_PID=$!
 echo "  Role Service PID: $ROLE_PID (port 5003)"
 cd ..
@@ -185,8 +197,12 @@ sleep 2
 
 # API Gateway
 echo -e "${YELLOW}Starting API Gateway...${NC}"
+if [ ! -d gateway/node_modules ]; then
+  echo -e "  ${YELLOW}Installing gateway dependencies...${NC}"
+  (cd gateway && npm install)
+fi
 cd gateway
-PORT=8000 npm run dev > ../logs/gateway.log 2>&1 &
+PORT=8000 npm start > ../logs/gateway.log 2>&1 &
 GATEWAY_PID=$!
 echo "  API Gateway PID: $GATEWAY_PID (port 8000)"
 cd ..

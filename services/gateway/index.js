@@ -113,7 +113,7 @@ const createServiceProxy = (serviceName, target) => {
     onError: (err, req, res) => {
       console.error(`Error proxying to ${serviceName}:`, err.message);
       if (!res.headersSent) {
-        const isBackend = serviceName === 'cards' || serviceName === 'collections' || serviceName === 'upload' || serviceName === 'ai';
+        const isBackend = ['auth', 'users', 'roles', 'cards', 'collections', 'upload', 'ai', 'email', 'preview', 'files', 'content'].includes(serviceName);
         res.status(502).json({ 
           error: `Service ${serviceName} unavailable`,
           message: isBackend ? 'Backend may be down. Start with: npm run backend (or cd services && ./start-all.sh)' : `Service ${serviceName} unavailable`,

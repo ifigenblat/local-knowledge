@@ -50,7 +50,7 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    DATABASE (MongoDB)                           │
+│                    DATABASE (PostgreSQL)                       │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
 │  │   Users         │  │   Cards         │  │   Collections   │ │
 │  │   - Auth data   │  │   - Content     │  │   - Card groups │ │
@@ -393,8 +393,8 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
 ### Backend
 - **Node.js** - Runtime
 - **Express.js** - Web framework
-- **MongoDB** - Database
-- **Mongoose** - ODM
+- **PostgreSQL** - Database
+- **Sequelize** - ORM
 - **JWT** - Authentication
 - **bcryptjs** - Password hashing
 - **Multer** - File upload handling
@@ -419,7 +419,7 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
 Local Machine:
 ├── Frontend (React) - localhost:3000
 ├── Backend (Express) - localhost:5001
-├── MongoDB - Docker container (localhost:27017)
+├── PostgreSQL - Docker container (localhost:5432)
 ├── MailHog - localhost:8025 (email testing)
 └── Ollama - localhost:11434 (AI service, optional)
 ```
@@ -429,7 +429,7 @@ Local Machine:
 Cloud Infrastructure:
 ├── Frontend - Static hosting (Vercel/Netlify)
 ├── Backend - Node.js server (Heroku/AWS/Railway)
-├── MongoDB - Managed database (MongoDB Atlas)
+├── PostgreSQL - Managed database (e.g. Neon, Supabase, RDS)
 └── SMTP - Production email service (SendGrid/Mailgun)
 ```
 

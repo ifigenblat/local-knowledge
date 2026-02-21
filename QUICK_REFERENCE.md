@@ -85,6 +85,23 @@ cd services/files-service && npm test
 ```
 Each service also has `npm run test:endpoints` (functional) and `npm run test:integration` where applicable. See each service’s README.
 
+### **CI (GitHub Actions)**
+- **When:** Every push and PR to `main`
+- **What:** Unit tests (all 11 services + client) and client build
+- **Where:** Repo → **Actions** tab
+- **Run locally (same as CI):**
+  ```bash
+  npm ci && npm ci --prefix client && npm ci --prefix services
+  for dir in services/ai-service services/auth-service services/card-service \
+    services/collection-service services/content-processing-service services/email-service \
+    services/files-service services/preview-service services/role-service \
+    services/upload-service services/user-service; do
+    (cd "$dir" && npm ci --no-audit --no-fund && npm test -- --ci --coverage --passWithNoTests)
+  done
+  npm test -- --watchAll=false --passWithNoTests --prefix client
+  npm run build --prefix client
+  ```
+
 ### **Maintenance**
 ```bash
 # Clean install (remove all node_modules)

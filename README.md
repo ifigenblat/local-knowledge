@@ -417,6 +417,15 @@ Cards can be regenerated from their provenance snippets using two methods:
 2. Deploy the `build` folder to your hosting service
 3. Update the API base URL for production
 
+## CI
+
+CI runs on **GitHub Actions** for every push and pull request to `main`.
+
+- **Workflow:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+- **Runs:** Install deps → unit tests (all services + client) → client build
+- **View runs:** Repo **Actions** tab on GitHub
+- **Locally:** Same steps as CI (install with `npm ci`, then run service tests, client tests, and `npm run build` in client). See [QUICK_REFERENCE.md](QUICK_REFERENCE.md#ci-github-actions) for commands.
+
 ## 🤝 Contributing
 
 We welcome contributions! 

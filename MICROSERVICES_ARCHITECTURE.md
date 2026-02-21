@@ -13,7 +13,7 @@ Frontend (React)
     ↓
 API Gateway / Express Server
     ↓
-MongoDB (Direct Access)
+PostgreSQL (Direct Access)
 ```
 
 **Issues:**

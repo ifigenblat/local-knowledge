@@ -348,7 +348,7 @@ The system supports granular permissions across six main categories:
 ### 12. Data Management
 
 **Database:**
-- MongoDB with Mongoose ODM
+- PostgreSQL with Sequelize
 - User, Card, Collection, and Role models
 - Indexed fields for performance
 - Timestamps on all documents
@@ -459,7 +459,7 @@ The system supports granular permissions across six main categories:
 
 ### Backend Stack
 - **Node.js** with Express.js
-- **MongoDB** with Mongoose ODM
+- **PostgreSQL** with Sequelize
 - **JWT** for authentication
 - **bcryptjs** for password hashing
 - **Multer** for file uploads
@@ -473,7 +473,7 @@ The system supports granular permissions across six main categories:
 - **Ollama** (optional) for AI processing
 
 ### External Services
-- **MongoDB**: Database (local Docker or cloud)
+- **PostgreSQL**: Database (local Docker or cloud)
 - **MailHog**: Local email testing (development)
 - **Ollama**: Local AI processing (optional)
 
@@ -626,7 +626,7 @@ The system supports granular permissions across six main categories:
 
 ### Environment Variables
 - `PORT`: Server port (default: 5001)
-- `MONGODB_URI`: MongoDB connection string
+- `DATABASE_URL`: PostgreSQL connection string
 - `JWT_SECRET`: Secret key for JWT tokens
 - `CLIENT_URL`: Frontend URL
 - `MAILHOG_HOST`: MailHog host (development)
@@ -670,7 +670,7 @@ The system supports granular permissions across six main categories:
 - `QUICK_REFERENCE.md`: Quick command reference
 - `AI_VERIFICATION.md`: AI setup and verification guide
 - `EMAIL_SETUP.md`: Email configuration guide
-- `setup-mongodb.md`: MongoDB setup instructions
+- `services/POSTGRES_MIGRATION.md`: PostgreSQL setup (current DB)
 - `architecture-diagram.md`: System architecture documentation
 
 ### Getting Help

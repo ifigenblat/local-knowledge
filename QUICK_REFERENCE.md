@@ -38,11 +38,52 @@ docker run -d -p 5432:5432 -e POSTGRES_USER=localknowledge -e POSTGRES_PASSWORD=
 
 ### **Testing & Health Checks**
 ```bash
-# Test services
+# Basic health
 npm run test:backend     # Test backend API
 npm run test:frontend    # Test frontend
 npm run test:proxy       # Test proxy connection
+
+# Service endpoint tests (gateway + services must be running)
+npm run test:users             # User service – functional (HTTP)
+npm run test:users:integration # User service – integration (real DB + Role Service)
+npm run test:auth              # Auth service – functional
+npm run test:auth:integration  # Auth service – integration (login + validate)
+npm run test:roles             # Role service – functional
+npm run test:roles:integration # Role service – integration (CRUD + cleanup)
+npm run test:cards             # Card service – functional
+npm run test:cards:integration # Card service – integration (CRUD + cleanup)
+npm run test:collections       # Collection service – functional
+npm run test:collections:integration # Collection service – integration (CRUD + cleanup)
+npm run test:uploads           # Upload service – functional
+npm run test:uploads:integration # Upload service – integration
+npm run test:content           # Content-processing – functional
+npm run test:content:integration # Content-processing – integration
+npm run test:ai                # AI service – functional
+npm run test:ai:integration    # AI service – integration
+npm run test:email             # Email service – functional
+npm run test:email:integration # Email service – integration
+npm run test:preview           # Preview service – functional
+npm run test:preview:integration # Preview service – integration
+npm run test:files             # Files service – functional
+npm run test:files:integration # Files service – integration
+npm run test:integration       # Upload flow (services/test-integration-upload-files.js)
 ```
+
+**Unit tests** (no gateway/DB; run from each service; user, auth, role, card, collection have ≥90% coverage):
+```bash
+cd services/user-service && npm test
+cd services/auth-service && npm test
+cd services/role-service && npm test
+cd services/card-service && npm test
+cd services/collection-service && npm test
+cd services/upload-service && npm test
+cd services/content-processing-service && npm test
+cd services/ai-service && npm test
+cd services/email-service && npm test
+cd services/preview-service && npm test
+cd services/files-service && npm test
+```
+Each service also has `npm run test:endpoints` (functional) and `npm run test:integration` where applicable. See each service’s README.
 
 ### **Maintenance**
 ```bash

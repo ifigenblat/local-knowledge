@@ -95,6 +95,19 @@ If you get `401 Unauthorized`:
 2. Check that the token variable is set in your environment
 3. Verify the token hasn't expired (tokens typically last 24 hours)
 
+## Testing (CLI)
+
+From `services/user-service` you can run unit, functional, and integration tests. See **README.md** in this directory for full details.
+
+```bash
+cd services/user-service
+npm test                  # Unit tests (Jest, no gateway/DB)
+npm run test:endpoints    # Functional – hits API via gateway
+npm run test:integration  # Integration – real Postgres + Role Service (creates/deletes a test user)
+```
+
+From repo root: `npm run test:users` (functional), `npm run test:users:integration` (integration). Gateway and user-service must be running for functional/integration.
+
 ## Direct Service Access
 
 If you want to test directly against the user-service (bypassing gateway):

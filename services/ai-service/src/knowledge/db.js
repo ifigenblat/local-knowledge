@@ -58,6 +58,20 @@ async function findSimilar(userId, queryEmbedding, topK = 5) {
   }
 }
 
+async function getEmbeddedCount(userId) {
+  if (userId == null || userId === '') return 0;
+  const client = await getPool().connect();
+  try {
+    const r = await client.query(
+      'SELECT COUNT(*)::int AS count FROM card_embeddings WHERE user_id::text = $1',
+      [String(userId)]
+    );
+    return r.rows[0]?.count ?? 0;
+  } finally {
+    client.release();
+  }
+}
+
 async function deleteEmbedding(cardId) {
   const client = await getPool().connect();
   try {
@@ -67,4 +81,4 @@ async function deleteEmbedding(cardId) {
   }
 }
 
-module.exports = { upsertEmbedding, findSimilar, deleteEmbedding, getPool };
+module.exports = { upsertEmbedding, findSimilar, deleteEmbedding, getEmbeddedCount, getPool };

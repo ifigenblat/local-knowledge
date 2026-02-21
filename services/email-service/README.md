@@ -37,10 +37,10 @@ PORT=5009 npm start
 
 For local testing, run MailHog: `docker run -d -p 1025:1025 -p 8025:8025 mailhog/mailhog` and view at http://localhost:8025.
 
-## Test
+## Testing
 
-```bash
-npm run test:endpoints
-# or from repo root:
-npm run test:email
-```
+- **Unit** (Jest, routes ≥90%): `npm test` or `npm run test:watch`
+- **Functional** (gateway + service running): `npm run test:endpoints`
+- **Integration**: `npm run test:integration`
+
+From repo root: `npm run test:email` (functional), `npm run test:email:integration` (integration).

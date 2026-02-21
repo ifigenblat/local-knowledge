@@ -26,10 +26,10 @@ PORT=5012 npm start
 
 Or use `./start-all.sh` from `services/`.
 
-## Test
+## Testing
 
-```bash
-npm run test:endpoints
-# or from repo root:
-npm run test:files
-```
+- **Unit** (Jest): `npm test` or `npm run test:watch`
+- **Functional** (gateway + service running): `npm run test:endpoints`
+- **Integration**: `npm run test:integration`
+
+From repo root: `npm run test:files` (functional), `npm run test:files:integration` (integration).

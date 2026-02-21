@@ -4,7 +4,7 @@
 
 const { chatGenerate } = require('../aiProcessor');
 const { embedText, getEmbedModel } = require('./embedder');
-const { upsertEmbedding, findSimilar } = require('./db');
+const { upsertEmbedding, findSimilar, getEmbeddedCount } = require('./db');
 
 /**
  * Embed cards and store in card_embeddings.
@@ -37,7 +37,8 @@ async function embedCards(cards, userId) {
     }
   }
 
-  return { embedded, total: cards.length, errors };
+  const embeddedCount = await getEmbeddedCount(userId);
+  return { embedded, total: cards.length, errors, embeddedCount };
 }
 
 /**
@@ -81,4 +82,12 @@ async function askQuestion(question, userId, topK = 5) {
   return { answer, sources };
 }
 
-module.exports = { embedCards, askQuestion };
+/**
+ * Return the number of cards currently embedded for the user.
+ */
+async function getEmbeddedCountForUser(userId) {
+  if (!userId) return 0;
+  return getEmbeddedCount(userId);
+}
+
+module.exports = { embedCards, askQuestion, getEmbeddedCountForUser };

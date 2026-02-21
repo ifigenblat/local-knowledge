@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test:endpoints": "node test-upload-endpoints.js"
+    "test": "jest --coverage",
+    "test:watch": "jest --watch --coverage",
+    "test:endpoints": "node test-upload-endpoints.js",
+    "test:integration": "node test-upload-integration.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -15,6 +18,8 @@
     "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
   }
 }

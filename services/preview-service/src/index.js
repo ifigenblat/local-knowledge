@@ -29,8 +29,12 @@ app.get('/status', (req, res) => {
 
 app.use('/', previewRoutes);
 
-app.listen(PORT, () => {
-  const uploadDir = process.env.UPLOAD_DIR || '../uploads';
-  console.log(`Preview Service listening on port ${PORT}`);
-  console.log(`Upload dir: ${uploadDir}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    const uploadDir = process.env.UPLOAD_DIR || '../uploads';
+    console.log(`Preview Service listening on port ${PORT}`);
+    console.log(`Upload dir: ${uploadDir}`);
+  });
+}
+
+module.exports = app;

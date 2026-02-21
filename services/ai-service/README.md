@@ -49,10 +49,10 @@ npm install
 PORT=5008 npm start
 ```
 
-## Test
+## Testing
 
-```bash
-npm run test:endpoints
-# or from repo root:
-npm run test:ai
-```
+- **Unit** (Jest): `npm test` or `npm run test:watch`
+- **Functional** (gateway + service running): `npm run test:endpoints`
+- **Integration**: `npm run test:integration`
+
+From repo root: `npm run test:ai` (functional), `npm run test:ai:integration` (integration).

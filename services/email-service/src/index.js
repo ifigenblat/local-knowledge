@@ -15,6 +15,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', service: 'email-service' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Email Service listening on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`Email Service listening on port ${PORT}`);
+  });
+}
+
+module.exports = app;

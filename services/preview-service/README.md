@@ -34,10 +34,10 @@ PORT=5011 npm start
 
 From start-all.sh, UPLOAD_DIR is set automatically to `services/uploads`.
 
-## Test
+## Testing
 
-```bash
-npm run test:endpoints
-# or from repo root:
-npm run test:preview
-```
+- **Unit** (Jest): `npm test` or `npm run test:watch`
+- **Functional** (gateway + service running): `npm run test:endpoints`
+- **Integration**: `npm run test:integration`
+
+From repo root: `npm run test:preview` (functional), `npm run test:preview:integration` (integration).

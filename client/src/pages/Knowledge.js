@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
@@ -7,14 +7,34 @@ import { Search, Database, MessageCircle, Loader2 } from 'lucide-react';
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
+/** Label for the embedded cards count shown on the Knowledge page */
+const EMBEDDED_COUNT_LABEL = 'cards embedded';
+
 export default function Knowledge() {
   const dispatch = useDispatch();
   const { cards } = useSelector((state) => state.cards);
   const [embedding, setEmbedding] = useState(false);
   const [embedResult, setEmbedResult] = useState(null);
+  const [embeddedCount, setEmbeddedCount] = useState(null);
   const [question, setQuestion] = useState('');
   const [asking, setAsking] = useState(false);
   const [answer, setAnswer] = useState(null);
+
+  const fetchEmbeddedCount = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${API_BASE}/api/ai/knowledge/count`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setEmbeddedCount(res.data?.embeddedCount ?? 0);
+    } catch {
+      setEmbeddedCount(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchEmbeddedCount();
+  }, [fetchEmbeddedCount]);
 
   const handleEmbed = async () => {
     setEmbedding(true);
@@ -41,6 +61,11 @@ export default function Knowledge() {
         timeout: 300000,
       });
       setEmbedResult(res.data);
+      if (typeof res.data.embeddedCount === 'number') {
+        setEmbeddedCount(res.data.embeddedCount);
+      } else {
+        await fetchEmbeddedCount();
+      }
       const { embedded, total, errors } = res.data;
       if (errors?.length > 0 && embedded === 0) {
         const firstErr = errors[0]?.error || 'Unknown error';
@@ -94,6 +119,11 @@ export default function Knowledge() {
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Index your cards so you can search them with natural language. Run this after adding new cards.
         </p>
+        {embeddedCount !== null && (
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            {embeddedCount} {EMBEDDED_COUNT_LABEL}
+          </p>
+        )}
         <button
           onClick={handleEmbed}
           disabled={embedding}

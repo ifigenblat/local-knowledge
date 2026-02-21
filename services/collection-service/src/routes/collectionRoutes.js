@@ -1,17 +1,9 @@
 const express = require('express');
-const path = require('path');
 const router = express.Router();
-
-let CollectionRepository;
+const { getCollectionRepository } = require('../repositories/CollectionRepositoryFactory');
 
 async function getRepo() {
-  if (!CollectionRepository) {
-    const { initPostgres } = require(path.join(__dirname, '../../../shared/postgres'));
-    const { Collection, Card } = await initPostgres();
-    const PostgresCollectionRepository = require(path.join(__dirname, '../../../shared/postgres/repositories/CollectionRepository'));
-    CollectionRepository = new PostgresCollectionRepository(Collection, Card);
-  }
-  return CollectionRepository;
+  return getCollectionRepository();
 }
 
 function getErrorMessage(err) {

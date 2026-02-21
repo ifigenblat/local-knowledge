@@ -27,11 +27,14 @@ const startServer = async () => {
     });
   } catch (error) {
     console.error('Failed to start Content Processing Service:', error?.message || error);
-    // Run without DB - rules will use defaults, but rules API PUT/reset will fail
     app.listen(PORT, () => {
       console.log(`Content Processing Service listening on port ${PORT} (rules from defaults, DB optional)`);
     });
   }
 };
 
-startServer();
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
+
+module.exports = app;

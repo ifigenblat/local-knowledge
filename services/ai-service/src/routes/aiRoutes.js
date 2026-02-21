@@ -1,6 +1,6 @@
 const express = require('express');
 const { regenerateCardWithAI, generateCardsFromDocument, getOllamaStatus, getAIMaxTextLength, invalidateSettingsCache } = require('../aiProcessor');
-const { embedCards, askQuestion } = require('../knowledge/handlers');
+const { embedCards, askQuestion, getEmbeddedCountForUser } = require('../knowledge/handlers');
 
 const router = express.Router();
 
@@ -68,6 +68,16 @@ const knowledgeAsk = asyncHandler(async (req, res) => {
   const result = await askQuestion(question, userId, topK);
   if (!res.headersSent) res.json(result);
 });
+
+const knowledgeEmbedCount = asyncHandler(async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const count = await getEmbeddedCountForUser(userId);
+  if (!res.headersSent) res.json({ embeddedCount: count });
+});
+
+/** GET /knowledge/count – embedded cards count for current user */
+router.get('/knowledge/count', knowledgeEmbedCount);
+router.get('/api/ai/knowledge/count', knowledgeEmbedCount);
 
 /** POST /knowledge/embed – Body: { cards: [{ id, title, content }] } */
 router.post('/knowledge/embed', knowledgeEmbed);

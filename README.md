@@ -193,7 +193,7 @@ Or from repo root: `npm run dev:microservices` (starts all services then fronten
 
 **Observability**: `GET /health`, `GET /services/health`, `GET /metrics` (Prometheus format)
 
-**Testing**: `cd services && ./test-services.sh` or `node test-integration-upload-files.js`
+**Testing**: From repo root (gateway + services must be running for functional/integration): **Functional**: `npm run test:users`, `npm run test:auth`, `npm run test:roles`, `npm run test:cards`, `npm run test:collections`, `npm run test:uploads`, `npm run test:content`, `npm run test:ai`, `npm run test:email`, `npm run test:preview`, `npm run test:files`. **Integration**: `npm run test:users:integration`, `npm run test:auth:integration`, `npm run test:roles:integration`, `npm run test:cards:integration`, `npm run test:collections:integration`, `npm run test:uploads:integration`, `npm run test:content:integration`, `npm run test:ai:integration`, `npm run test:email:integration`, `npm run test:preview:integration`, `npm run test:files:integration`; upload flow `npm run test:integration`. **Unit tests** (no gateway; ≥90% coverage on user, auth, role, card, collection): `cd services/<service> && npm test` for user-service, auth-service, role-service, card-service, collection-service, upload-service, content-processing-service, ai-service, email-service, preview-service, files-service. See `QUICK_REFERENCE.md` (Testing) and each service’s README.
 
 ### Docker (All Services)
 

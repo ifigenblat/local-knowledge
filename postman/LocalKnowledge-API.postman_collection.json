@@ -740,6 +740,46 @@
       ]
     },
     {
+      "name": "Knowledge",
+      "item": [
+        {
+          "name": "Get Embedded Count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/ai/knowledge/count",
+            "description": "Return how many cards are currently embedded for the current user. Response: { embeddedCount: number }. Used by the Knowledge page to show \"N cards embedded\"."
+          }
+        },
+        {
+          "name": "Embed Cards",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cards\": [\n    { \"id\": \"{{card_id}}\", \"title\": \"Card title\", \"content\": \"Card content to embed.\" }\n  ]\n}"
+            },
+            "url": "{{base_url}}/api/ai/knowledge/embed",
+            "description": "Embed cards for the knowledge base (RAG). Body: { cards: [{ id, title, content }] }. Requires embeddings provider (OpenAI, Groq, or Ollama nomic-embed-text). Response: { embedded, total, errors?, embeddedCount }."
+          }
+        },
+        {
+          "name": "Ask Question",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What are the key takeaways from my notes?\",\n  \"topK\": 5\n}"
+            },
+            "url": "{{base_url}}/api/ai/knowledge/ask",
+            "description": "Ask a question over your embedded cards (RAG). Body: { question, topK? (default 5) }. Response: { answer, sources }. Embed cards first via Embed Cards or the Knowledge page."
+          }
+        }
+      ]
+    },
+    {
       "name": "Email",
       "item": [
         {

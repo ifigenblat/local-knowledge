@@ -20,7 +20,8 @@ Use these files to test the LocalKnowledge API directly in Postman (via the API 
 | **Gateway** (8000) | Upload | Upload single, Upload multiple, Upload progress |
 | **Gateway** (8000) | Preview | Preview file (e.g. DOCX, PDF) |
 | **Gateway** (8000) | Uploads (static) | Get uploaded file by path |
-| **Gateway** (8000) | AI | AI status |
+| **AI** (5008) | AI | AI Status, Regenerate (AI) |
+| **AI** (5008) | Knowledge | Get Embedded Count, Embed Cards, Ask Question (RAG) |
 
 ## Import in Postman
 
@@ -68,3 +69,4 @@ Use these files to test the LocalKnowledge API directly in Postman (via the API 
 - All other requests use **Bearer {{token}}** from the environment.
 - **Users → Update Settings** requires a Super Administrator account; it configures AI provider (Ollama vs cloud) and cloud credentials (provider, URL, model, API key).
 - For **Upload**, use the Body → form-data tab and add a key `file` of type File, then choose a file. Optionally add `useAI` = `true` and `category`, `tags` as form fields.
+- **Knowledge**: Run **Embed Cards** with a `cards` array (use **Cards → List Cards** to get card `id`, `title`, `content`); then **Ask Question** to run RAG over your embedded cards. **Get Embedded Count** returns how many cards are indexed.

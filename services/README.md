@@ -60,7 +60,7 @@ curl http://localhost:8000/health
 curl http://localhost:8000/services/health
 
 # Individual services (when running)
-curl http://localhost:5001/health
+curl http://localhost:8000/health
 curl http://localhost:5002/health
 # etc.
 ```

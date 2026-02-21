@@ -57,7 +57,7 @@ If you want to test with real email delivery:
 2. Generate an App Password:
    - Go to: https://myaccount.google.com/apppasswords
    - Create a new app password
-3. Add to `server/.env`:
+3. Add to `services/.env`:
    ```env
    SMTP_USER=your-email@gmail.com
    SMTP_PASS=your-app-password
@@ -65,7 +65,7 @@ If you want to test with real email delivery:
 
 ## Configuration
 
-The email configuration is in `server/.env`:
+The email configuration is in `services/.env`:
 
 ```env
 # MailHog (default for local dev)
@@ -87,7 +87,7 @@ SMTP_FROM=noreply@yourdomain.com
 
 ## How It Works
 
-Email sending uses the following transport selection order (see `server/utils/email.js`):
+Email sending uses the following transport selection order (see `services/email-service`):
 
 1. **Custom SMTP (recommended for production)**:
    - If `SMTP_HOST` and `SMTP_PORT` are set, the app uses those settings (optionally with `SMTP_USER`/`SMTP_PASS`).

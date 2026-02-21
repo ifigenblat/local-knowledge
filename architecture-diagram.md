@@ -81,7 +81,7 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
    ↓
 2. Frontend → Backend: POST /api/upload (multipart/form-data)
    ↓
-3. Backend: Save file to /server/uploads/
+3. Backend: Save file (upload service / uploads dir)
    ↓
 4. Backend: Process file content
    - PDF → pdf-parse
@@ -356,7 +356,7 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
 11. Frontend: Update UI, close comparison view
 ```
 
-### AI Processor (`server/utils/aiProcessor.js`)
+### AI Processor (services/ai-service)
 - **isOllamaAvailable()** - Checks Ollama service status
 - **regenerateCardWithAI()** - Generates card using Ollama API
   - Truncates input to 1000 chars
@@ -368,7 +368,7 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
 
 ## Email System
 
-### Email Utility (`server/utils/email.js`)
+### Email (services/email-service)
 - **Development** - MailHog (localhost:1025) for local testing
 - **Production** - Gmail SMTP or custom SMTP server
 - **Fallback** - Ethereal Email test accounts
@@ -418,7 +418,7 @@ LocalKnowledge is a web application that transforms uploaded content (PDFs, Word
 ```
 Local Machine:
 ├── Frontend (React) - localhost:3000
-├── Backend (Express) - localhost:5001
+├── API Gateway (Express) - localhost:8000
 ├── PostgreSQL - Docker container (localhost:5432)
 ├── MailHog - localhost:8025 (email testing)
 └── Ollama - localhost:11434 (AI service, optional)

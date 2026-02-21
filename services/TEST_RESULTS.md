@@ -104,7 +104,7 @@ cd services
 #### 1. Health Checks
 ```bash
 # Individual services
-curl http://localhost:5001/health  # Auth Service
+curl http://localhost:8000/health  # API Gateway
 curl http://localhost:5002/health  # User Service
 curl http://localhost:5003/health  # Role Service
 curl http://localhost:8000/health  # API Gateway

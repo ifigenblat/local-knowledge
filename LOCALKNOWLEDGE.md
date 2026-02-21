@@ -24,7 +24,7 @@ LocalKnowledge is a comprehensive knowledge management system that automatically
 - Progress tracking for upload operations
 
 **File Storage:**
-- Files stored in `server/uploads/` directory
+- Files stored in services upload directories (per-service)
 - Original files preserved for provenance tracking
 - File metadata stored in database
 

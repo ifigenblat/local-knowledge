@@ -46,6 +46,16 @@ Ensure PostgreSQL is running on port 5432 (e.g. Docker: `docker run -d -p 5432:5
    npm run seed-postgres   # optional: default roles and admin user
    ```
 
+### **Client: "react-scripts: command not found"**
+If `npm start` in `client/` fails with this error, install dependencies (and ensure the real Create React App package is used):
+```bash
+cd client
+npm install
+# If still failing, force the correct react-scripts version:
+npm install react-scripts@5.0.1
+npm start
+```
+
 ## Ports summary
 
 | Port  | Service            | Purpose              |

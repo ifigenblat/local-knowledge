@@ -108,7 +108,7 @@ The frontend will now connect to the API Gateway on port 8000.
 - Restart frontend after changing proxy
 
 ### Authentication fails
-- Check Auth Service is running: `curl http://localhost:5001/health`
+- Check Auth Service is running: `curl http://localhost:8000/health`
 - Check JWT_SECRET matches in all services
 - Check roles are initialized
 

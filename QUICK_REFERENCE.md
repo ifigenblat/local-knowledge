@@ -87,7 +87,7 @@ Each service also has `npm run test:endpoints` (functional) and `npm run test:in
 
 ### **CI (GitHub Actions)**
 - **When:** Every push and PR to `main`
-- **What:** Unit tests (all 11 services + client) and client build
+- **What:** Unit tests (all 11 services) and client build
 - **Where:** Repo → **Actions** tab
 - **Run locally (same as CI):**
   ```bash
@@ -98,7 +98,6 @@ Each service also has `npm run test:endpoints` (functional) and `npm run test:in
     services/upload-service services/user-service; do
     (cd "$dir" && npm ci --no-audit --no-fund && npm test -- --ci --coverage --passWithNoTests)
   done
-  npm test -- --watchAll=false --passWithNoTests --prefix client
   npm run build --prefix client
   ```
 

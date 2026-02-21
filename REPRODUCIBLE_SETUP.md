@@ -50,8 +50,8 @@ cd /path/to/your/project
 # Install root dependencies
 npm install
 
-# Install backend dependencies
-cd server && npm install
+# Install backend (microservices) dependencies
+cd services && npm install
 
 # Install frontend dependencies
 cd ../client && npm install
@@ -62,13 +62,11 @@ cd ..
 
 ### **3. Environment Configuration**
 
-#### **Backend Environment (.env)**
-Create `server/.env`:
+#### **Backend Environment (services/.env)**
+Create `services/.env`:
 ```env
-PORT=5001
-MONGODB_URI=mongodb://localknowledge:myknowledge@localhost:27017/local-knowledge?authSource=admin
+DATABASE_URL=postgresql://localknowledge:localknowledge@localhost:5432/localknowledge
 JWT_SECRET=your-secret-key-here-make-this-secure-in-production
-NODE_ENV=development
 CLIENT_URL=http://localhost:3000
 
 # Email Configuration (Local Development)
@@ -89,29 +87,38 @@ MAILHOG_PORT=1025
 The `client/package.json` already includes:
 ```json
 {
-  "proxy": "http://localhost:5001"
+  "proxy": "http://localhost:8000"
 }
 ```
+(API Gateway runs on port 8000.)
 
-### **4. Database Setup (MongoDB with Docker)**
+### **4. Database Setup (PostgreSQL)**
 
-#### **Start MongoDB Container**
+The app uses **PostgreSQL** only. See **services/POSTGRES_MIGRATION.md** for full details.
+
+#### **Start PostgreSQL (Docker)**
 ```bash
-# Start Docker Desktop first, then:
-docker run -d --name mongodb -p 27017:27017 \
-  -e MONGO_INITDB_ROOT_USERNAME=localknowledge \
-  -e MONGO_INITDB_ROOT_PASSWORD=myknowledge \
-  -e MONGO_INITDB_DATABASE=local-knowledge \
-  mongo:latest --auth
+docker run -d -p 5432:5432 \
+  -e POSTGRES_USER=localknowledge \
+  -e POSTGRES_PASSWORD=localknowledge \
+  -e POSTGRES_DB=localknowledge \
+  --name localknowledge-postgres \
+  postgres:16-alpine
 
 # Verify container is running
-docker ps | grep mongodb
+docker ps | grep localknowledge-postgres
+```
+
+#### **Sync schema and seed (first run)**
+```bash
+cd services
+DATABASE_URL=postgresql://localknowledge:localknowledge@localhost:5432/localknowledge npm run sync-postgres
+DATABASE_URL=postgresql://localknowledge:localknowledge@localhost:5432/localknowledge npm run seed-postgres
 ```
 
 #### **Alternative: Start existing container**
 ```bash
-# If container already exists but is stopped
-docker start mongodb
+docker start localknowledge-postgres
 ```
 
 ### **5. Email Setup (Optional - for Password Reset)**
@@ -133,7 +140,7 @@ brew services start mailhog
 
 All password reset emails will appear in MailHog during development.
 
-**Note**: For production, configure Gmail SMTP or custom SMTP in `server/.env` (see Step 3).
+**Note**: For production, configure Gmail SMTP or custom SMTP in `services/.env` (see Step 3).
 
 ### **5.5 AI Setup (Optional - Ollama / Local AI)**
 
@@ -157,7 +164,7 @@ ollama pull llama2
 
 #### **Verify AI status endpoint**
 ```bash
-curl http://localhost:5001/api/ai/status
+curl http://localhost:8000/api/ai/status
 ```
 
 See `AI_VERIFICATION.md` for detailed verification steps and troubleshooting.
@@ -184,13 +191,11 @@ After running `setup.sh`, a default superadmin user is automatically created:
 If you need to manually initialize roles or create a superadmin user:
 
 ```bash
-# Initialize default roles (superadmin, admin, and user)
-cd server
-node scripts/init-roles.js
-
-# Create default superadmin user
-node scripts/create-admin-user.js
+# Initialize default roles and admin user (from services/)
+cd services
+DATABASE_URL=postgresql://localknowledge:localknowledge@localhost:5432/localknowledge npm run seed-postgres
 ```
+(Seed creates default roles and the superadmin user.)
 
 **Note**: The superadmin role is immutable and cannot be modified, deleted, or deactivated through the UI.
 
@@ -206,11 +211,10 @@ node scripts/create-admin-user.js
 
 Ensure all critical files exist in the project:
 
-#### **Backend Files**
-- ✅ `server/models/Collection.js` - Collection model
-- ✅ `server/models/Card.js` - Card model  
-- ✅ `server/models/User.js` - User model
-- ✅ `server/models/Role.js` - Role model (for RBAC)
+#### **Backend (services/)**
+- ✅ `services/shared/postgres/models` - Sequelize models (User, Role, Card, Collection, etc.)
+- ✅ `services/gateway` - API Gateway (port 8000)
+- ✅ `services/*-service` - Microservices (auth, user, role, card, collection, upload, etc.)
 
 #### **Frontend Files**
 - ✅ `client/src/store/slices/authSlice.js` - Authentication slice
@@ -230,14 +234,10 @@ Ensure all critical files exist in the project:
 
 All required files are included in the project. No additional file creation is needed.
 
-#### **Backend Utility Files**
-- ✅ `server/utils/contentProcessor.js` - File processing and card generation
-- ✅ `server/utils/aiProcessor.js` - AI regeneration (Ollama) + status endpoint helper
-- ✅ `server/utils/email.js` - Email sending utility (MailHog/SMTP)
-- ✅ `server/middleware/auth.js` - JWT authentication middleware
-- ✅ `server/middleware/authorize.js` - Role-based authorization middleware
-- ✅ `server/scripts/init-roles.js` - Initialize default roles (admin, user)
-- ✅ `server/scripts/create-admin-user.js` - Create default admin user
+#### **Backend (services/)**
+- ✅ `services/shared/postgres` - DB connection, models, sync/seed scripts
+- ✅ `services/scripts/sync-postgres-schema.js`, `seed-postgres.js` - Schema and default roles/admin
+- ✅ Per-service routes, middleware, and utilities (auth, cards, upload, email, AI, etc.)
 
 #### **Frontend Component Files**
 - ✅ `client/src/components/Layout.js` - Main layout with navigation
@@ -266,8 +266,8 @@ cd client && npm start
 
 #### **Check Services**
 ```bash
-# Backend health check
-curl http://localhost:5001/api/health
+# Backend (API Gateway) health check
+curl http://localhost:8000/health
 
 # Frontend check
 curl -I http://localhost:3000
@@ -277,17 +277,17 @@ curl http://localhost:3000/api/health
 ```
 
 #### **Expected Output**
-- Backend: `{"status":"OK","message":"Server is running"}`
+- Backend/Gateway: `{"status":"OK"}` or similar
 - Frontend: `HTTP/1.1 200 OK`
 - Proxy: `{"status":"OK","message":"Server is running"}`
 
 ## 🎯 **Access the Application**
 
 - **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:5001
-- **Database**: MongoDB on localhost:27017
+- **API Gateway**: http://localhost:8000
+- **Database**: PostgreSQL on localhost:5432
 - **MailHog** (Email Testing): http://localhost:8025
-- **AI Status**: http://localhost:5001/api/ai/status
+- **AI Status**: http://localhost:8000/api/ai/status
 - **Ollama** (AI, optional): http://localhost:11434
 
 ## 🔐 **Default Test Account**
@@ -308,28 +308,28 @@ npm run stop
 
 # Kill specific ports
 lsof -ti:3000 | xargs kill -9
-lsof -ti:5001 | xargs kill -9
+lsof -ti:8000 | xargs kill -9
 ```
 
 ### **Database Management**
 ```bash
-# View MongoDB container
-docker ps
+# View PostgreSQL container
+docker ps | grep localknowledge-postgres
 
-# Start MongoDB
-docker start mongodb
+# Start PostgreSQL
+docker start localknowledge-postgres
 
-# Stop MongoDB
-docker stop mongodb
+# Stop PostgreSQL
+docker stop localknowledge-postgres
 
-# Remove MongoDB (fresh start)
-docker rm mongodb
+# Remove container (fresh start)
+docker rm localknowledge-postgres
 ```
 
 ### **View Logs**
 ```bash
-# Backend logs
-cd server && npm run dev
+# Backend (microservices)
+cd services && ./start-all.sh
 
 # Frontend logs
 cd client && npm start
@@ -338,34 +338,31 @@ cd client && npm start
 ## 🚨 **Common Issues & Solutions**
 
 ### **Port Conflicts**
-- Backend port 5001 already in use: Kill process with `lsof -ti:5001 | xargs kill -9`
+- Gateway port 8000 already in use: Kill process with `lsof -ti:8000 | xargs kill -9`
 - Frontend port 3000 already in use: Kill process with `lsof -ti:3000 | xargs kill -9`
 
-### **MongoDB Connection Issues**
+### **PostgreSQL Connection Issues**
 - Docker not running: Start Docker Desktop
-- Container not running: `docker start mongodb`
-- Fresh container (auth enabled):
+- Container not running: `docker start localknowledge-postgres`
+- Fresh container:
   ```bash
-  docker run -d --name mongodb -p 27017:27017 \
-    -e MONGO_INITDB_ROOT_USERNAME=localknowledge \
-    -e MONGO_INITDB_ROOT_PASSWORD=myknowledge \
-    -e MONGO_INITDB_DATABASE=local-knowledge \
-    mongo:latest --auth
+  docker run -d -p 5432:5432 -e POSTGRES_USER=localknowledge -e POSTGRES_PASSWORD=localknowledge -e POSTGRES_DB=localknowledge --name localknowledge-postgres postgres:16-alpine
   ```
+- Then from `services/`: `DATABASE_URL=postgresql://localknowledge:localknowledge@localhost:5432/localknowledge npm run sync-postgres npm run seed-postgres`
 
 ### **AI (Ollama) Issues**
-- AI button disabled: Ensure `OLLAMA_ENABLED=true` in `server/.env` and restart the server
+- AI button disabled: Ensure `OLLAMA_ENABLED=true` in `services/.env` and restart the gateway/services
 - Ollama not reachable: Start Ollama with `ollama serve`
 - Model missing: `ollama pull llama2` (or whatever `OLLAMA_MODEL` is set to)
-- Verify: `curl http://localhost:5001/api/ai/status`
+- Verify: `curl http://localhost:8000/api/ai/status`
 
 ### **File Issues**
 - Verify all required files exist (see Step 5)
 - Check file paths and permissions
 
 ### **Proxy Errors**
-- Verify `client/package.json` has `"proxy": "http://localhost:5001"`
-- Ensure backend is running on port 5001
+- Verify `client/package.json` has `"proxy": "http://localhost:8000"`
+- Ensure API Gateway is running on port 8000 (`cd services && ./start-all.sh`)
 
 ## 📦 **Package Dependencies**
 
@@ -375,8 +372,8 @@ cd client && npm start
   "name": "local-knowledge",
   "version": "1.0.0",
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "cd server && npm run dev",
+    "dev": "concurrently \"npm run gateway\" \"npm run client\"",
+    "gateway": "cd services/gateway && npm run dev",
     "client": "cd client && npm start"
   },
   "devDependencies": {
@@ -385,21 +382,16 @@ cd client && npm start
 }
 ```
 
-### **Backend Dependencies (server/package.json)**
-Key dependencies:
+### **Backend Dependencies (services/)**
+Key dependencies (microservices use shared/postgres):
 - express
-- mongoose
+- sequelize, pg (PostgreSQL)
 - bcryptjs
 - jsonwebtoken
 - multer
 - nodemailer (email sending)
-- cors
-- helmet
-- express-rate-limit
-- pdf-parse (PDF processing)
-- mammoth (Word document processing)
-- xlsx (Excel processing)
-- natural (NLP for tag generation)
+- cors, helmet, express-rate-limit
+- pdf-parse, mammoth, xlsx, natural
 
 ### **Frontend Dependencies (client/package.json)**
 Key dependencies:
@@ -419,7 +411,7 @@ Key dependencies:
 You'll know the setup is successful when:
 1. ✅ Both servers start without errors
 2. ✅ Frontend loads at http://localhost:3000
-3. ✅ Backend responds at http://localhost:5001/api/health
+3. ✅ Backend (gateway) responds at http://localhost:8000/health
 4. ✅ Proxy works (frontend can reach backend)
 5. ✅ Default roles (superadmin, admin, user) are initialized
 6. ✅ Default superadmin user is created (email: admin@localknowledge.local)
@@ -431,10 +423,10 @@ You'll know the setup is successful when:
 
 ## 📝 **Notes**
 
-- This setup uses MongoDB in Docker for consistency
+- This setup uses **PostgreSQL** (Docker or local). See **services/POSTGRES_MIGRATION.md** for details.
 - All passwords are properly hashed with bcryptjs
 - JWT tokens are used for authentication (7-day expiration)
-- File uploads are stored in `server/uploads/` (10MB max per file)
+- File uploads are stored in services upload directories (per-service; 10MB max per file)
 - Supported file types: PDF, DOCX, DOC, TXT, MD, JSON, XLSX, XLS, PNG, JPG, JPEG, GIF
 - Email system: MailHog for development (http://localhost:8025), SMTP for production
 - Password reset tokens expire after 1 hour

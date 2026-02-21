@@ -15,7 +15,7 @@ This guide helps you verify that AI-powered card regeneration is working correct
 ### 2. **API Endpoint Check** (Programmatic)
 ```bash
 # Check AI status via API
-curl http://localhost:5001/api/ai/status
+curl http://localhost:8000/api/ai/status
 
 # Expected response when working:
 {
@@ -54,7 +54,7 @@ curl http://localhost:11434/api/show \
 
 ### 4. **Check Environment Variables**
 ```bash
-# In server/.env file, ensure these are set:
+# In services/.env file, ensure these are set:
 OLLAMA_ENABLED=true
 OLLAMA_API_URL=http://localhost:11434
 OLLAMA_MODEL=llama2
@@ -96,13 +96,13 @@ ollama pull llama3.2
 
 ### Step 4: Configure Server
 ```bash
-# Edit server/.env
+# Edit services/.env
 OLLAMA_ENABLED=true
 OLLAMA_API_URL=http://localhost:11434
 OLLAMA_MODEL=llama2  # Use the model you installed
 ```
 
-**Verify**: Restart server, then `curl http://localhost:5001/api/ai/status`
+**Verify**: Restart server, then `curl http://localhost:8000/api/ai/status`
 
 ### Step 5: Test in Application
 1. Open a card with provenance snippet
@@ -117,7 +117,7 @@ OLLAMA_MODEL=llama2  # Use the model you installed
 ## Troubleshooting
 
 ### Issue: "Ollama is not enabled"
-**Solution**: Set `OLLAMA_ENABLED=true` in `server/.env` and restart server
+**Solution**: Set `OLLAMA_ENABLED=true` in `services/.env` and restart server
 
 ### Issue: "Ollama is not reachable"
 **Solution**: 
@@ -174,7 +174,7 @@ OLLAMA_MODEL=llama2  # Use the model you installed
 2. **Pull model**: `ollama pull llama2`
 3. **Set .env**: `OLLAMA_ENABLED=true` (and other vars)
 4. **Restart server**: Kill and restart Node.js server
-5. **Check status**: `curl http://localhost:5001/api/ai/status`
+5. **Check status**: `curl http://localhost:8000/api/ai/status`
 6. **Open card modal**: Check for green checkmark status
 7. **Regenerate with AI**: Click "Regenerate (AI)" button
 8. **View comparison**: Should see side-by-side comparison of rule-based vs AI versions

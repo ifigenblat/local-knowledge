@@ -53,7 +53,7 @@
 
 ### Prerequisites
 1. PostgreSQL running (e.g. Docker: `docker run -d -p 5432:5432 -e POSTGRES_USER=localknowledge -e POSTGRES_PASSWORD=localknowledge -e POSTGRES_DB=localknowledge postgres:16-alpine`)
-2. Initialize roles: Run `server/scripts/init-roles.js` first
+2. Initialize roles: Run `npm run seed-postgres` from services/ first
 
 ### Start Services
 

@@ -200,6 +200,12 @@ const Upload = () => {
             <strong>File:</strong> {uploadResults.file?.originalName}
             <br />
             <strong>Message:</strong> {uploadResults.message}
+            {uploadResults.partialAIFailureMessage && (
+              <>
+                <br />
+                <span className="text-amber-700 dark:text-amber-300">{uploadResults.partialAIFailureMessage}</span>
+              </>
+            )}
           </div>
           <Link
             to="/files"

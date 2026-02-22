@@ -59,7 +59,7 @@ const UploadZone = ({ onUpload, onUploadComplete, isUploading = false, uploadSet
         [fileObj.id]: 100
       }));
 
-      const { created, updated } = result.details || { created: result.cards.length, updated: 0 };
+      const { created, updated } = result.details || { created: result.cards?.length ?? 0, updated: 0 };
       const message = created > 0 && updated > 0 
         ? `Created ${created} new cards and updated ${updated} existing cards from ${fileObj.file.name}`
         : created > 0 
@@ -67,7 +67,10 @@ const UploadZone = ({ onUpload, onUploadComplete, isUploading = false, uploadSet
         : `Updated ${updated} existing cards from ${fileObj.file.name}`;
       
       toast.success(message);
-      
+      if (result.partialAIFailure && result.partialAIFailureMessage) {
+        toast(result.partialAIFailureMessage, { icon: '⚠️', duration: 8000 });
+      }
+
       if (onUploadComplete) {
         onUploadComplete(result);
       }

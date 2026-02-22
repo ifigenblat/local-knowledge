@@ -44,6 +44,9 @@ const PROCESSING_MAX = {
   aiMaxTextLength: 200000,
   ollamaChunkChars: 4000,
 };
+const KNOWLEDGE_TOP_K_MIN = 5;
+const KNOWLEDGE_TOP_K_MAX = 20;
+const KNOWLEDGE_TOP_K_DEFAULT = 10;
 
 function readSettings() {
   const raw = readSettingsRaw();
@@ -59,6 +62,9 @@ function readSettings() {
     aiChunkDelayMs: typeof raw.aiChunkDelayMs === 'number' ? raw.aiChunkDelayMs : PROCESSING_DEFAULTS.aiChunkDelayMs,
     aiMaxTextLength: typeof raw.aiMaxTextLength === 'number' ? raw.aiMaxTextLength : PROCESSING_DEFAULTS.aiMaxTextLength,
     ollamaChunkChars: typeof raw.ollamaChunkChars === 'number' ? raw.ollamaChunkChars : PROCESSING_DEFAULTS.ollamaChunkChars,
+    knowledgeTopK: typeof raw.knowledgeTopK === 'number' && raw.knowledgeTopK >= KNOWLEDGE_TOP_K_MIN && raw.knowledgeTopK <= KNOWLEDGE_TOP_K_MAX
+      ? raw.knowledgeTopK
+      : KNOWLEDGE_TOP_K_DEFAULT,
   };
   return {
     aiProvider,
@@ -99,7 +105,7 @@ router.put('/settings', async (req, res) => {
     if (role !== 'superadmin') {
       return res.status(403).json({ error: 'Only Super Administrator can change settings' });
     }
-    const { aiProvider, cloudProvider, cloudApiUrl, cloudModel, cloudApiKey, maxExtractedTextChars, aiChunkChars, aiChunkDelayMs, aiMaxTextLength, ollamaChunkChars } = req.body;
+    const { aiProvider, cloudProvider, cloudApiUrl, cloudModel, cloudApiKey, maxExtractedTextChars, aiChunkChars, aiChunkDelayMs, aiMaxTextLength, ollamaChunkChars, knowledgeTopK } = req.body;
     if (aiProvider !== 'openai' && aiProvider !== 'ollama') {
       return res.status(400).json({ error: 'aiProvider must be "openai" or "ollama"' });
     }
@@ -132,6 +138,10 @@ router.put('/settings', async (req, res) => {
     const nOllama = parseInt(ollamaChunkChars, 10);
     if (!Number.isNaN(nOllama) && nOllama >= 500 && nOllama <= PROCESSING_MAX.ollamaChunkChars) {
       current.ollamaChunkChars = nOllama;
+    }
+    const nTopK = parseInt(knowledgeTopK, 10);
+    if (!Number.isNaN(nTopK) && nTopK >= KNOWLEDGE_TOP_K_MIN && nTopK <= KNOWLEDGE_TOP_K_MAX) {
+      current.knowledgeTopK = nTopK;
     }
     writeSettings(current);
     res.json(readSettings());

@@ -31,7 +31,7 @@ async function upsertEmbedding(cardId, userId, embedding, contentText, model = '
   }
 }
 
-async function findSimilar(userId, queryEmbedding, topK = 5) {
+async function findSimilar(userId, queryEmbedding, topK = 10) {
   const client = await getPool().connect();
   try {
     const rows = await client.query(

@@ -99,7 +99,7 @@ function useOpenAI() {
   return Boolean(OPENAI_API_KEY && OPENAI_API_KEY.trim());
 }
 
-const AI_CHAT_TIMEOUT_MS = Number(process.env.AI_CHAT_TIMEOUT_MS) || 300000; // 5 min default for slow/local models (Cloud API)
+const AI_CHAT_TIMEOUT_MS = Number(process.env.AI_CHAT_TIMEOUT_MS) || 600000; // 10 min default for slow/local models; set AI_CHAT_TIMEOUT_MS to override
 const AI_CHAT_MAX_RETRIES = 2;
 if (typeof process !== 'undefined' && process.env && !process.env.AI_CHAT_TIMEOUT_LOGGED) {
   console.log(`AI chat timeout: ${AI_CHAT_TIMEOUT_MS} ms (${Math.round(AI_CHAT_TIMEOUT_MS / 1000)}s)`);
@@ -395,7 +395,7 @@ JSON format:
   };
 }
 
-const MAX_CHUNK_CHARS_OLLAMA = 1500;
+const MAX_CHUNK_CHARS_OLLAMA = 1200; // conservative default to reduce OOM on small/local models; override via settings (ollamaChunkChars)
 const MAX_CHUNK_CHARS_CLOUD = 5000;
 const CHUNK_OVERLAP = 100;
 const MAX_DOCUMENT_CHARS_OLLAMA = 1500;  // Conservative for local Ollama to prevent OOM

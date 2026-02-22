@@ -46,13 +46,13 @@ async function embedCards(cards, userId) {
  * Embeds question, retrieves top-k similar cards, calls LLM with context.
  * Body: { question, topK? }, userId from X-User-Id header.
  */
-async function askQuestion(question, userId, topK = 5) {
+async function askQuestion(question, userId, topK = 10) {
   if (!userId) throw new Error('User ID required (X-User-Id header)');
   const q = (question || '').trim();
   if (!q) throw new Error('Question is required');
 
   const queryEmbedding = await embedText(q);
-  const similar = await findSimilar(userId, queryEmbedding, Math.min(topK, 10));
+  const similar = await findSimilar(userId, queryEmbedding, Math.min(topK, 20));
 
   if (similar.length === 0) {
     return {

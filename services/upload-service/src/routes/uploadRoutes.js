@@ -202,38 +202,86 @@ router.post('/', upload.single('file'), async (req, res) => {
           `Extracted ${text.length} chars → chunks sum ${chunkCharsSum} chars. ${fullCoverage ? '✓ Full document covered.' : '⚠ Chunk sum < extracted (check chunking).'}`
         );
         const allItems = [];
+        let failedChunks = 0;
+        let lastChunkError = null; // keep first/last failure reason for "all failed" response
         const aiBase = AI_SERVICE_URL.replace(/\/$/, '');
+        // Per-chunk timeout: AI service may process one chunk as multiple sub-chunks (e.g. Ollama 4×1.5k), each up to 5 min
+        const timeoutMs = 1200000; // 20 min per chunk so multi-sub-chunk (e.g. Ollama) can finish
+        const retryDelayMs = 3000;
+
         for (let i = 0; i < chunks.length; i++) {
-          const controller = new AbortController();
-          const timeoutMs = 360000; // 6 min per chunk (ai-service default is 5 min for slow/local models)
-          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-          try {
-            const aiRes = await fetch(`${aiBase}/generate-cards`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                text: chunks[i],
-                sourceFileName: file.originalname,
-              }),
-              signal: controller.signal,
-            });
-            const aiData = await aiRes.json().catch(() => ({}));
-            if (!aiRes.ok) {
-              console.error(`❌ AI chunk ${i + 1}/${chunks.length} failed:`, aiData);
-              throw new Error(aiData.message || aiData.error || 'AI card generation failed');
+          let chunkSucceeded = false;
+          let lastErr = null;
+          for (let attempt = 0; attempt <= 1 && !chunkSucceeded; attempt++) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+              const aiRes = await fetch(`${aiBase}/generate-cards`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  text: chunks[i],
+                  sourceFileName: file.originalname,
+                }),
+                signal: controller.signal,
+              });
+              clearTimeout(timeoutId);
+              const aiData = await aiRes.json().catch(() => ({}));
+              if (!aiRes.ok) {
+                lastErr = new Error(aiData.message || aiData.error || 'AI card generation failed');
+                if (attempt === 0) {
+                  console.warn(`⚠️ AI chunk ${i + 1}/${chunks.length} failed (will retry once):`, lastErr.message);
+                  await new Promise(r => setTimeout(r, retryDelayMs));
+                  continue;
+                }
+                failedChunks++;
+                if (!lastChunkError) lastChunkError = lastErr.message;
+                console.error(`❌ AI chunk ${i + 1}/${chunks.length} failed after retry:`, lastErr.message);
+                break;
+              }
+              const items = aiData.items || [];
+              allItems.push(...items);
+              console.log(`✅ Chunk ${i + 1}/${chunks.length}: ${items.length} cards (total ${allItems.length})`);
+              chunkSucceeded = true;
+            } catch (err) {
+              clearTimeout(timeoutId);
+              lastErr = err;
+              if (attempt === 0) {
+                console.warn(`⚠️ AI chunk ${i + 1}/${chunks.length} error (will retry once):`, err.message);
+                await new Promise(r => setTimeout(r, retryDelayMs));
+              } else {
+                failedChunks++;
+                if (!lastChunkError) lastChunkError = err.message || String(err);
+                console.error(`❌ AI chunk ${i + 1}/${chunks.length} failed after retry:`, err.message);
+              }
             }
-            const items = aiData.items || [];
-            allItems.push(...items);
-            console.log(`✅ Chunk ${i + 1}/${chunks.length}: ${items.length} cards (total ${allItems.length})`);
-          } finally {
-            clearTimeout(timeoutId);
           }
           if (i < chunks.length - 1) {
             await new Promise(r => setTimeout(r, limits.aiChunkDelayMs));
           }
         }
+
         processedContent = allItems;
-        console.log(`✅ AI generated ${processedContent.length} cards total`);
+        if (allItems.length === 0 && chunks.length > 0) {
+          console.error('❌ AI flow: all chunks failed. Last error:', lastChunkError);
+          if (fs.existsSync(file.path)) {
+            try { fs.unlinkSync(file.path); } catch (_) {}
+          }
+          const baseMsg = 'The AI could not generate cards from this file (all sections failed).';
+          const hint = lastChunkError
+            ? ` Reason: ${lastChunkError} Try a shorter file, smaller "Chunk size sent to AI" (e.g. 3000), or increase AI timeout (AI_CHAT_TIMEOUT_MS in ai-service).`
+            : ' Try a shorter file, reduce "Chunk size sent to AI" in AI Settings, or use a faster model.';
+          return res.status(502).json({
+            error: 'AI processing failed',
+            message: baseMsg + hint,
+            detail: lastChunkError || undefined,
+            service: 'upload-service',
+          });
+        }
+        if (failedChunks > 0) {
+          req._partialAIFailure = { failedChunks, totalChunks: chunks.length };
+        }
+        console.log(`✅ AI generated ${processedContent.length} cards total` + (failedChunks > 0 ? ` (${failedChunks} chunk(s) failed)` : ''));
       } catch (err) {
         console.error('❌ AI flow error:', err.message);
         if (fs.existsSync(file.path)) {
@@ -316,6 +364,10 @@ router.post('/', upload.single('file'), async (req, res) => {
         try { fs.unlinkSync(file.path); } catch (_) {}
       }
       return res.status(cardRes.status).json(data);
+    }
+    if (req._partialAIFailure) {
+      data.partialAIFailure = true;
+      data.partialAIFailureMessage = `Some sections could not be processed (${req._partialAIFailure.failedChunks} of ${req._partialAIFailure.totalChunks} sections failed). Cards were created from the rest.`;
     }
     res.status(cardRes.status).json(data);
   } catch (error) {

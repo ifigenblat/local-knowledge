@@ -76,6 +76,7 @@ const PROCESSING_DEFAULTS = {
   aiChunkDelayMs: 300,
   aiMaxTextLength: 100000,
   ollamaChunkChars: 1500,
+  knowledgeTopK: 10,
 };
 const PROCESSING_MAX = {
   maxExtractedTextChars: 2000000,
@@ -84,6 +85,8 @@ const PROCESSING_MAX = {
   aiMaxTextLength: 200000,
   ollamaChunkChars: 4000,
 };
+/** Knowledge Q&A: allowed top K values (max cards used per answer). */
+const KNOWLEDGE_TOP_K_OPTIONS = [5, 10, 15, 20];
 
 /** Install & run steps for each local AI option (super admin). runAction: API action for "Run" button. */
 const LOCAL_AI_INSTALL = {
@@ -163,6 +166,7 @@ const AISettings = () => {
     aiChunkDelayMs: PROCESSING_DEFAULTS.aiChunkDelayMs,
     aiMaxTextLength: PROCESSING_DEFAULTS.aiMaxTextLength,
     ollamaChunkChars: PROCESSING_DEFAULTS.ollamaChunkChars,
+    knowledgeTopK: PROCESSING_DEFAULTS.knowledgeTopK,
   });
   const [processingExpanded, setProcessingExpanded] = useState(false);
 
@@ -196,6 +200,7 @@ const AISettings = () => {
           aiChunkDelayMs: typeof res.data.aiChunkDelayMs === 'number' ? res.data.aiChunkDelayMs : PROCESSING_DEFAULTS.aiChunkDelayMs,
           aiMaxTextLength: typeof res.data.aiMaxTextLength === 'number' ? res.data.aiMaxTextLength : PROCESSING_DEFAULTS.aiMaxTextLength,
           ollamaChunkChars: typeof res.data.ollamaChunkChars === 'number' ? res.data.ollamaChunkChars : PROCESSING_DEFAULTS.ollamaChunkChars,
+          knowledgeTopK: typeof res.data.knowledgeTopK === 'number' && KNOWLEDGE_TOP_K_OPTIONS.includes(res.data.knowledgeTopK) ? res.data.knowledgeTopK : PROCESSING_DEFAULTS.knowledgeTopK,
         });
       })
       .catch(() => toast.error('Failed to load settings'))
@@ -223,6 +228,8 @@ const AISettings = () => {
       payload.aiChunkDelayMs = Math.min(PROCESSING_MAX.aiChunkDelayMs, Math.max(0, Number(processingLimits.aiChunkDelayMs) || PROCESSING_DEFAULTS.aiChunkDelayMs));
       payload.aiMaxTextLength = Math.min(PROCESSING_MAX.aiMaxTextLength, Math.max(10000, Number(processingLimits.aiMaxTextLength) || PROCESSING_DEFAULTS.aiMaxTextLength));
       payload.ollamaChunkChars = Math.min(PROCESSING_MAX.ollamaChunkChars, Math.max(500, Number(processingLimits.ollamaChunkChars) || PROCESSING_DEFAULTS.ollamaChunkChars));
+      const topK = Number(processingLimits.knowledgeTopK) || PROCESSING_DEFAULTS.knowledgeTopK;
+      payload.knowledgeTopK = KNOWLEDGE_TOP_K_OPTIONS.includes(topK) ? topK : PROCESSING_DEFAULTS.knowledgeTopK;
       const res = await axios.put('/api/users/settings', payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -552,6 +559,20 @@ const AISettings = () => {
                         className="w-full max-w-xs px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       />
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Default {PROCESSING_DEFAULTS.ollamaChunkChars}. Max {PROCESSING_MAX.ollamaChunkChars}. For local Ollama only; lower avoids OOM.</p>
+                    </div>
+                    <div>
+                      <label htmlFor="knowledgeTopK" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Knowledge Q&amp;A: max cards per answer</label>
+                      <select
+                        id="knowledgeTopK"
+                        value={processingLimits.knowledgeTopK}
+                        onChange={(e) => setProcessingLimits((p) => ({ ...p, knowledgeTopK: Number(e.target.value) }))}
+                        className="w-full max-w-xs px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                      >
+                        {KNOWLEDGE_TOP_K_OPTIONS.map((n) => (
+                          <option key={n} value={n}>{n} card{n !== 1 ? 's' : ''}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Number of most relevant cards used to generate answers on the Knowledge page. Default {PROCESSING_DEFAULTS.knowledgeTopK}.</p>
                     </div>
                   </div>
                 )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { fetchCards } from '../store/slices/cardSlice';
@@ -10,15 +10,30 @@ const API_BASE = process.env.REACT_APP_API_URL || '';
 /** Label for the embedded cards count shown on the Knowledge page */
 const EMBEDDED_COUNT_LABEL = 'cards embedded';
 
+const DEFAULT_TOP_K = 10;
+
 export default function Knowledge() {
   const dispatch = useDispatch();
-  const { cards } = useSelector((state) => state.cards);
   const [embedding, setEmbedding] = useState(false);
   const [embedResult, setEmbedResult] = useState(null);
   const [embeddedCount, setEmbeddedCount] = useState(null);
   const [question, setQuestion] = useState('');
   const [asking, setAsking] = useState(false);
   const [answer, setAnswer] = useState(null);
+  const [knowledgeTopK, setKnowledgeTopK] = useState(DEFAULT_TOP_K);
+
+  const fetchSettings = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${API_BASE}/api/users/settings`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const k = res.data?.knowledgeTopK;
+      if (typeof k === 'number' && k >= 5 && k <= 20) setKnowledgeTopK(k);
+    } catch {
+      // keep default
+    }
+  }, []);
 
   const fetchEmbeddedCount = useCallback(async () => {
     try {
@@ -31,6 +46,16 @@ export default function Knowledge() {
       setEmbeddedCount(0);
     }
   }, []);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+  useEffect(() => {
+    const onFocus = () => fetchSettings();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [fetchSettings]);
 
   useEffect(() => {
     fetchEmbeddedCount();
@@ -90,7 +115,7 @@ export default function Knowledge() {
       const token = localStorage.getItem('token');
       const res = await axios.post(
         `${API_BASE}/api/ai/knowledge/ask`,
-        { question: question.trim(), topK: 5 },
+        { question: question.trim(), topK: knowledgeTopK },
         { headers: { Authorization: `Bearer ${token}` }, timeout: 60000 }
       );
       setAnswer(res.data);
@@ -150,7 +175,7 @@ export default function Knowledge() {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Ask a question</h2>
         </div>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Ask anything based on your embedded cards. AI answers only from your knowledge base.
+          Ask anything based on your embedded cards. The answer uses the top {knowledgeTopK} most relevant cards (by similarity).
         </p>
         <form onSubmit={handleAsk} className="space-y-4">
           <div className="flex gap-2">
@@ -176,7 +201,7 @@ export default function Knowledge() {
             <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{answer.answer}</p>
             {answer.sources?.length > 0 && (
               <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                Based on {answer.sources.length} card(s)
+                Based on {answer.sources.length} most relevant card(s){answer.sources.length < knowledgeTopK ? ` (up to ${knowledgeTopK} used)` : ''}
               </p>
             )}
           </div>

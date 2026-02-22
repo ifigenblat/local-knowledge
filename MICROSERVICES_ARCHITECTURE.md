@@ -1,30 +1,18 @@
-# Microservices Architecture Proposal
+# Microservices Architecture
 
 ## Overview
 
-This document outlines a microservices architecture for LocalKnowledge, where services handle database access instead of direct application connections. This provides better separation of concerns, scalability, and maintainability.
+LocalKnowledge runs on a **microservices architecture**: an API Gateway (port 8000) routes requests to multiple services, each with a single responsibility. All services use a **shared PostgreSQL** database. This document describes the current design.
 
 ---
 
-## Current Architecture (Monolithic)
+## Previous Architecture (Monolithic) – for context
 
-```
-Frontend (React)
-    ↓
-API Gateway / Express Server
-    ↓
-PostgreSQL (Direct Access)
-```
-
-**Issues:**
-- Tight coupling between routes and database
-- Difficult to scale individual features
-- Single point of failure
-- Hard to deploy independently
+The app previously used a single backend with direct DB access. That had tight coupling, scaling limits, and a single point of failure. The sections below describe the **current** microservices setup.
 
 ---
 
-## Proposed Microservices Architecture
+## Current Architecture (Microservices – implemented)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -35,12 +23,11 @@ PostgreSQL (Direct Access)
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      API GATEWAY                               │
-│              (Kong / Express Gateway / Nginx)                  │
+│            Express + http-proxy-middleware                     │
 │                    http://localhost:8000                        │
-│  - Authentication                                              │
-│  - Rate Limiting                                               │
-│  - Request Routing                                             │
-│  - Load Balancing                                              │
+│  - JWT validation (auth)                                       │
+│  - Request routing (proxy to services)                         │
+│  - CORS, logging                                               │
 └─────────────────────────────────────────────────────────────────┘
                                 │
         ┌───────────────────────┼───────────────────────┐
@@ -68,16 +55,26 @@ PostgreSQL (Direct Access)
         ▼                       ▼                       ▼
 ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
 │Content Proc  │      │  AI Service  │      │Email Service │
-│   :5007      │      │   :5008       │      │   :5009      │
+│   :5007      │      │   :5008      │      │   :5009      │
+└──────────────┘      └──────────────┘      └──────────────┘
+        │                       │                       │
+        └───────────────────────┼───────────────────────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        ▼                       ▼                       ▼
+┌──────────────┐      ┌──────────────┐      ┌──────────────┐
+│Preview Svc   │      │ Files Service│      │Uploads Static│
+│   :5011      │      │   :5012      │      │   :5013      │
 └──────────────┘      └──────────────┘      └──────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    POSTGRESQL DATABASE                          │
-│                    (Shared or Per-Service)                       │
-│                  postgresql://localhost:5432                    │
+│                    (Shared – services/shared/postgres)          │
+│                  postgresql://localhost:5432                     │
 └─────────────────────────────────────────────────────────────────┘
 ```
+**All services:** auth (5001), user (5002), role (5003), card (5004), collection (5005), upload (5006), content (5007), ai (5008), email (5009), preview (5011), files (5012), uploads-static (5013), gateway (8000).
 
 ---
 
@@ -105,8 +102,7 @@ GET    /api/auth/validate
 - No direct writes (delegates to User Service)
 
 **Communication:**
-- Calls User Service for user creation/validation
-- Publishes events: `user.registered`, `user.logged_in`
+- Calls User Service (HTTP) for registration; uses shared DB (UserRepository) for login
 
 ---
 
@@ -135,9 +131,8 @@ PUT    /api/users/me/profile   # Update profile
 - Owns user data
 
 **Communication:**
-- Called by Auth Service
-- Calls Role Service for role assignment
-- Publishes events: `user.created`, `user.updated`, `user.deleted`
+- Called by Auth Service for registration
+- Calls Role Service (HTTP) for role info; has own assign-role endpoint
 
 ---
 
@@ -166,9 +161,7 @@ POST   /api/roles/check        # Check permissions
 - Owns role and permission data
 
 **Communication:**
-- Called by User Service for role assignment
-- Called by other services for permission checks
-- Publishes events: `role.created`, `role.updated`, `role.assigned`
+- Called by User Service for role assignment; fetches users from User Service for role membership
 
 ---
 
@@ -200,7 +193,6 @@ GET    /api/cards/search       # Full-text search
 - Called by Upload Service after processing
 - Calls AI Service for regeneration
 - Calls Content Processing Service for rule-based regeneration
-- Publishes events: `card.created`, `card.updated`, `card.deleted`
 
 ---
 
@@ -231,7 +223,6 @@ POST   /api/collections/:id/cards/bulk      # Bulk add cards
 
 **Communication:**
 - Calls Card Service to validate card existence
-- Publishes events: `collection.created`, `collection.updated`, `card.added_to_collection`
 
 ---
 
@@ -258,7 +249,6 @@ DELETE /api/upload/:id         # Delete uploaded file
 **Communication:**
 - Calls Content Processing Service to process files
 - Calls Card Service to create cards
-- Publishes events: `file.uploaded`, `file.processed`
 
 ---
 
@@ -283,7 +273,6 @@ POST   /api/process/regenerate # Regenerate from snippet
 **Communication:**
 - Called by Upload Service
 - Called by Card Service for regeneration
-- Publishes events: `content.processed`, `content.validated`
 
 ---
 
@@ -307,7 +296,6 @@ GET    /api/ai/status          # Check AI availability
 **Communication:**
 - Called by Card Service
 - Calls Ollama API
-- Publishes events: `ai.regenerated`, `ai.comparison_generated`
 
 ---
 
@@ -329,14 +317,12 @@ GET    /api/email/status/:id   # Get email status
 - No direct database access (stateless service)
 
 **Communication:**
-- Called by Auth Service for password reset
-- Called by other services for notifications
-- Uses MailHog (dev) or SMTP (prod)
-- Publishes events: `email.sent`, `email.failed`
+- Called by Auth Service for password reset emails
+- Uses MailHog (dev) or SMTP (prod); stateless
 
 ---
 
-### 10. **Preview Service** (Port 5010) - Optional
+### 10. **Preview Service** (Port 5011)
 **Responsibilities:**
 - File preview generation
 - Image thumbnail generation
@@ -356,7 +342,9 @@ GET    /api/preview/:filename/thumbnail # Get thumbnail
 
 ## Database Strategy
 
-### Option 1: Shared Database (Recommended for Start)
+**Current implementation:** This project uses a **single shared PostgreSQL** database (`services/shared/postgres`). The options below describe that and a possible future alternative.
+
+### Option 1: Shared Database — *current*
 **Single PostgreSQL database shared by all services**
 
 **Pros:**
@@ -384,7 +372,7 @@ GET    /api/preview/:filename/thumbnail # Get thumbnail
 
 ---
 
-### Option 2: Database Per Service (True Microservices)
+### Option 2: Database Per Service — *not implemented (future alternative)*
 **Each service has its own database**
 
 **Pros:**
@@ -421,7 +409,7 @@ GET    /api/preview/:filename/thumbnail # Get thumbnail
 - collection_cards
 ```
 
-**Recommendation**: Start with Option 1 (Shared Database), migrate to Option 2 later if needed.
+**Note:** The project uses Option 1. Option 2 is a possible future evolution if service independence or scaling demands it.
 
 ---
 
@@ -495,71 +483,17 @@ messageQueue.subscribe('user.created', async (event) => {
 2. **Authorization**: Check permissions (calls Role Service)
 3. **Rate Limiting**: Per-user/IP rate limits
 4. **Request Routing**: Route to appropriate service
-5. **Load Balancing**: Distribute load across service instances
-6. **Request/Response Transformation**: Format data
-7. **CORS**: Handle cross-origin requests
-8. **Logging**: Centralized logging
+5. **Request/Response Transformation**: Forward as-is (no load balancing in current setup)
+6. **CORS**: Handle cross-origin requests
+7. **Logging**: Centralized logging
 
-### Implementation Options:
+### Actual implementation (this project)
 
-#### Option 1: Express Gateway (Recommended)
-```javascript
-// gateway/index.js
-const gateway = require('express-gateway');
-
-gateway()
-  .load(path.join(__dirname, 'config'))
-  .run();
-```
-
-**Config:**
-```yaml
-# config/gateway.config.yml
-http:
-  port: 8000
-
-apiEndpoints:
-  api:
-    host: localhost
-    paths: ['/api/*']
-
-serviceEndpoints:
-  auth:
-    url: 'http://auth-service:5001'
-  user:
-    url: 'http://user-service:5002'
-  # ... other services
-
-policies:
-  - jwt
-  - rate-limit
-  - proxy
-
-pipelines:
-  default:
-    apiEndpoints:
-      - api
-    policies:
-      - jwt:
-          - action:
-              secretOrPublicKey: process.env.JWT_SECRET
-      - rate-limit:
-          - action:
-              max: 100
-              windowMs: 900000
-      - proxy:
-          - action:
-              serviceEndpoint: user
-              changeOrigin: true
-```
-
-#### Option 2: Kong
-- More features, more complex
-- Better for production
-
-#### Option 3: Nginx
-- Simple, performant
-- Less features
+The gateway is **Express + http-proxy-middleware** (see `services/gateway/index.js`):
+- Single Express app on port 8000
+- JWT validation middleware for protected routes
+- `createProxyMiddleware` per service (auth, user, role, cards, etc.)
+- No Kong, Nginx, or express-gateway package; no load balancing (one instance per service)
 
 ---
 
@@ -637,10 +571,9 @@ Too complex, not recommended for microservices
 
 ## Service Discovery
 
-### Problem:
-Services need to find each other
+**Current implementation:** The gateway and services use **configuration** (environment variables / hardcoded localhost URLs in `services/gateway/index.js`). No service registry or DNS-based discovery.
 
-### Solutions:
+### Alternatives (not used in this project):
 
 #### Option 1: Service Registry (Consul, Eureka)
 ```javascript
@@ -662,15 +595,19 @@ const services = await consul.health.service({
 - Use Kubernetes DNS
 - Use Docker Compose service names
 
-#### Option 3: Configuration
-- Hardcode service URLs in config
-- Simple but not flexible
+#### Option 3: Configuration — *current*
+- Service URLs in gateway config (env vars: `USER_SERVICE_URL`, etc., or defaults like `http://localhost:5002`)
+- Simple, no discovery service required
 
 ---
 
 ## Deployment
 
-### Option 1: Docker Compose (Development)
+**Current implementation:** Services are started as **local processes** via `./start-all.sh` (or `npm run backend`). PostgreSQL can be Docker or local. No Docker Compose or Kubernetes for the app today.
+
+### Alternatives (optional / future):
+
+#### Option 1: Docker Compose — *not implemented*
 ```yaml
 version: '3.8'
 services:
@@ -708,38 +645,40 @@ services:
       # ... other services
 ```
 
-### Option 2: Kubernetes (Production)
+#### Option 2: Kubernetes — *not implemented*
 - Deploy each service as a pod
 - Use services for load balancing
 - Use ingress for API Gateway
 
 ---
 
-## Migration Path
+## Migration Path (historical / reference)
 
-### Phase 1: Extract Services (2-3 weeks)
-1. Extract Auth Service
-2. Extract User Service
-3. Extract Role Service
-4. Set up API Gateway
-5. Test integration
+*The microservices below are already extracted. This section is kept for reference.*
 
-### Phase 2: Extract Core Services (2-3 weeks)
-1. Extract Card Service
-2. Extract Collection Service
-3. Extract Upload Service
-4. Test file upload flow
+### Phase 1: Extract Services (done)
+1. ~~Extract Auth Service~~ ✓
+2. ~~Extract User Service~~ ✓
+3. ~~Extract Role Service~~ ✓
+4. ~~Set up API Gateway~~ ✓
+5. ~~Test integration~~ ✓
 
-### Phase 3: Extract Supporting Services (1-2 weeks)
-1. Extract Content Processing Service
-2. Extract AI Service
-3. Extract Email Service
-4. Test end-to-end flows
+### Phase 2: Extract Core Services (done)
+1. ~~Extract Card Service~~ ✓
+2. ~~Extract Collection Service~~ ✓
+3. ~~Extract Upload Service~~ ✓
+4. ~~Test file upload flow~~ ✓
 
-### Phase 4: Optimize & Scale (Ongoing)
-1. Add message queue
-2. Implement caching
-3. Add monitoring
+### Phase 3: Extract Supporting Services (done)
+1. ~~Extract Content Processing Service~~ ✓
+2. ~~Extract AI Service~~ ✓
+3. ~~Extract Email Service~~ ✓
+4. ~~Preview, Files, Uploads-static~~ ✓
+
+### Phase 4: Optimize & Scale (optional / future)
+1. Add message queue (optional)
+2. Implement caching (optional)
+3. Add monitoring (optional)
 4. Optimize performance
 
 ---
@@ -861,26 +800,17 @@ services:
 
 ---
 
-## Next Steps
+## Running the stack
 
-1. **Decision**: Confirm microservices approach
-2. **Design**: Finalize service boundaries
-3. **Prototype**: Build one service (Auth) as proof of concept
-4. **Plan**: Create detailed migration plan
-5. **Execute**: Follow phased approach
-6. **Monitor**: Set up observability from day one
+- **Start all services:** From repo root `npm run backend`, or from `services/` run `./start-all.sh`. See **README.md** and **QUICK_REFERENCE.md** for commands.
+- **Database:** PostgreSQL (Docker or local). Schema and seed: from `services/` run `npm run sync-postgres` and `npm run seed-postgres`. See **services/POSTGRES_MIGRATION.md**.
 
 ---
 
 ## Conclusion
 
-Moving to microservices provides significant benefits but adds complexity. The key is to start simple and add complexity only when needed. A phased approach with shared database initially, then migrating to database-per-service if needed, is recommended.
-
-The architecture proposed here provides:
-- Clear service boundaries
-- Scalability
-- Maintainability
-- Technology flexibility
-- Team autonomy
-
-With proper planning and execution, this migration can be completed successfully and provide a solid foundation for future growth.
+The current architecture provides:
+- Clear service boundaries (auth, user, role, cards, collections, upload, content, AI, email, preview, files, uploads-static)
+- Single API Gateway (port 8000) for the frontend
+- Shared PostgreSQL with schema and models in `services/shared/postgres`
+- Scalability and maintainability; optional future evolution to database-per-service if needed

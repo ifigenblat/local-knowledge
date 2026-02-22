@@ -27,6 +27,9 @@ jobs:
           node-version: "20"
           cache: "npm"
 
+      - name: Node and npm versions
+        run: node -v && npm -v
+
       - name: Install root dependencies
         run: npm ci
 
@@ -42,14 +45,23 @@ jobs:
         env:
           NODE_ENV: test
         run: |
-          set -e
+          failed=""
           for dir in services/ai-service services/auth-service services/card-service \
             services/collection-service services/content-processing-service services/email-service \
             services/files-service services/preview-service services/role-service \
             services/upload-service services/user-service; do
             echo "==> $dir"
-            (cd "$dir" && npm ci --no-audit --no-fund && npm test -- --ci --coverage --passWithNoTests)
+            if (cd "$dir" && npm ci --no-audit --no-fund && npm test -- --ci --coverage --passWithNoTests); then
+              echo "  OK"
+            else
+              echo "  FAILED"
+              failed="${failed} ${dir}"
+            fi
           done
+          if [ -n "$failed" ]; then
+            echo "Service test failures:$failed"
+            exit 1
+          fi
 
       - name: Build client
         run: npm run build

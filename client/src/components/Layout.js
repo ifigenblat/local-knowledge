@@ -242,9 +242,9 @@ const Layout = ({ children }) => {
         />
       )}
 
-      {/* Main Content */}
-      <div className="lg:ml-64">
-        <main className="p-4 sm:p-6">
+      {/* Main Content — min-w-0 so wide tables (e.g. Cards) stay within viewport and scroll horizontally */}
+      <div className="lg:ml-64 min-w-0 max-w-full">
+        <main className="p-4 sm:p-6 min-w-0 max-w-full">
           {children}
         </main>
       </div>

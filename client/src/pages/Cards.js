@@ -590,7 +590,7 @@ const Cards = () => {
   // This prevents the entire page from being replaced when fetchCards() is called
 
   return (
-    <div className={`w-full px-4 pt-16 sm:pt-4 pb-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 ${selectedCardIds.size > 0 ? 'pb-24 sm:pb-24' : ''}`}>
+    <div className={`w-full min-w-0 max-w-full px-4 pt-16 sm:pt-4 pb-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 ${selectedCardIds.size > 0 ? 'pb-24 sm:pb-24' : ''}`}>
       {/* Show error inline */}
       {error && !loading && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
@@ -813,11 +813,10 @@ const Cards = () => {
         </div>
       )}
 
-      {/* Cards Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <div className="inline-block min-w-full align-middle">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+      {/* Cards Table — min-w-0 + max-w-full keeps horizontal scroll inside main (sidebar layouts need min-w-0) */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 w-full min-w-0 max-w-full overflow-hidden">
+        <div className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain">
+          <table className="w-full min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
                   <th className="px-4 sm:px-6 py-3 w-12">
@@ -872,8 +871,8 @@ const Cards = () => {
                           onClick={(e) => e.stopPropagation()}
                         />
                       </td>
-                      <td className="px-4 sm:px-6 py-4">
-                        <div className="flex items-start">
+                      <td className="px-4 sm:px-6 py-4 min-w-0 align-top">
+                        <div className="flex items-start min-w-0">
                           <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10">
                             <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-lg flex items-center justify-center ${getTypeColor(card.type)}`}>
                               {getTypeIcon(card.type)}
@@ -935,11 +934,15 @@ const Cards = () => {
                           {card.type}
                         </span>
                       </td>
-                      <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {card.category}
+                      <td className="hidden md:table-cell px-4 py-4 min-w-0 text-sm text-gray-900 dark:text-white">
+                        <span className="block truncate" title={card.category || ''}>
+                          {card.category}
+                        </span>
                       </td>
-                      <td className="hidden lg:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {card.source || '—'}
+                      <td className="hidden lg:table-cell px-4 py-4 min-w-0 text-sm text-gray-500 dark:text-gray-400">
+                        <span className="block truncate" title={card.source || ''}>
+                          {card.source || '—'}
+                        </span>
                       </td>
                       <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-medium rounded ${card.generatedBy === 'ai' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
@@ -983,7 +986,6 @@ const Cards = () => {
                 )}
               </tbody>
             </table>
-          </div>
         </div>
       </div>
 

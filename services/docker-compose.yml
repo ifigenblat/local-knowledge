@@ -1,5 +1,8 @@
 version: '3.8'
 
+# Project name in Docker Desktop (not the folder name "services")
+name: localknowledge
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -250,7 +253,9 @@ services:
 
 volumes:
   postgres_data:
+    name: services_postgres_data
   uploads_data:
+    name: services_uploads_data
 
 networks:
   microservices-network:
